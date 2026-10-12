@@ -1,0 +1,16 @@
+# Only the DLL source, build script, README, licence and CI are tracked. Everything else in this folder
+# (notes, analysis, game binaries, tests/harness, tools, build output) stays local.
+/*
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/LICENSE
+!/build.bat
+!/.github/
+!/src/
+
+/src/*
+!/src/*.cpp
+!/src/*.h
+!/src/*.inc
+!/src/*.def
