@@ -175,16 +175,27 @@ Also checked:
 
 You need GTA Vice City from Steam. The retail CD, Rockstar Games Launcher and Definitive Edition versions are not supported.
 
-In Steam, right-click the game and choose **Manage** → **Browse local files**. Then pick one:
+To open the game folder, right-click the game in Steam and choose **Manage** → **Browse local files**. Then follow the way that fits your folder.
 
-| Your game folder | Download | Copy |
-|---|---|---|
-| No `.asi` mods | [VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip) | `dinput8.dll` next to `gta-vc.exe` |
-| Has `.asi` mods, such as SilentPatch | [VCUnlock-ASI.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock-ASI.zip) | `VCUnlock.asi` where your other `.asi` files are |
+### Without an ASI loader
 
-`.asi` mods need an ASI loader, often a `dinput8.dll` of its own. `VCUnlock.asi` keeps that loader in place.
+Use this if you don't have an ASI loader installed.
 
-To uninstall, delete the file you copied.
+1. Download [VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip).
+2. Extract `dinput8.dll` into the game folder, next to `gta-vc.exe`.
+3. Start the game from Steam.
+
+To uninstall, delete `dinput8.dll`.
+
+### With an ASI loader
+
+Use this if you already have an ASI loader installed, for example for SilentPatch. The loader is often a `dinput8.dll` of its own: keep it and add VCUnlock as one more `.asi` file.
+
+1. Download [VCUnlock-ASI.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock-ASI.zip).
+2. Extract `VCUnlock.asi` into the folder that holds your other `.asi` files. That is usually the game folder, or its `scripts` or `plugins` folder.
+3. Start the game from Steam.
+
+To uninstall, delete `VCUnlock.asi`.
 
 ## Settings
 
