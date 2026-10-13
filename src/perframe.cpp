@@ -94,7 +94,7 @@ static void Thunk(uintptr_t at, size_t len, const char* pat, const char* what, B
     fix::Count(true);
 }
 
-// Calls `target` only on frames with a world tick (void callee, result unused; `argBytes` popped by the callee).
+// Calls `target` only on frames with a world tick; other frames return 0 (`argBytes` popped by the callee).
 static void GateCall(uintptr_t at, uintptr_t target, const char* what, uint16_t argBytes = 0) {
     static uintptr_t s_target;  // read by the builder below (single-threaded install)
     static uint16_t s_args;
@@ -105,6 +105,7 @@ static void GateCall(uintptr_t at, uintptr_t target, const char* what, uint16_t 
         uint8_t* r = e.Jcc8(JE);
         e.Jmp(s_target);
         e.Bind(r);
+        e.B({0x31, 0xC0});                                                  // xor eax, eax
         if (s_args) e.B({0xC2, uint8_t(s_args), uint8_t(s_args >> 8)});  // ret imm16
         else e.B({0xC3});
     });
@@ -279,6 +280,10 @@ static void Audio() {
             e.Jmp(s_cur->next);
         });
     }
+    // Radio presses: the pads update in world ticks, so a press stays "just down" on every drawn frame until the next
+    // tick. Without a tick it is no press, or one press retunes once per drawn frame.
+    GateCall(0x5FB436, 0x4AA460, "radio retune press");  // CPad::ChangeStationJustDown
+    GateCall(0x5FB369, 0x617050, "radio mp3 key", 4);    // ControlsManager.GetIsKeyboardKeyJustDown(rsF9)
     Thunk(0x5FB7F0, 6, "FF 0D 9C 29 78 00", "radio retune counter", [](Emit& e) {
         e.Hex("83 3D 9C 29 78 00 13");  // cmp dword [0x78299C], 19
         uint8_t* dec = e.Jcc8(JGE);     // the "== 19" frame must last one frame
