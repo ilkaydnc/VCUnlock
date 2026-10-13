@@ -236,6 +236,7 @@ struct CameraHistory {
     Slot* target = nullptr;
     uint8_t targetId = 0, active = 255, transition = 0;
     int16_t mode = -1;
+    int32_t direction = -1;
     Vec previousOffset{}, currentOffset{};
     bool following = false;
     float prevFov = 0, fov = 0;
@@ -584,6 +585,9 @@ void CaptureCamera(bool reset) {
     uint8_t active = Field<uint8_t>(logicalCamera, 0x76), transition = Field<uint8_t>(logicalCamera, 0x89);
     void* cam = active < 3 ? (uint8_t*)logicalCamera + 0x188 + active * 0x1CC : nullptr;
     int16_t mode = cam ? Field<int16_t>(cam, 0xC) : -1;
+    // Looking left/right/behind (DirectionWasLooking +0x28) changes in one tick: a cut, as in the game, which sets
+    // m_bJust_Switched 0x7E36EA when it changes (CCam::Process 0x483E7D..0x483F53).
+    int32_t direction = cam ? Field<int32_t>(cam, 0x28) : -1;
     void* targetEntity = cam ? Field<void*>(cam, 0x1B0) : nullptr;
     PoolTrack* targetPool = nullptr;
     Slot* target = FindTarget(targetEntity, targetPool);
@@ -592,7 +596,7 @@ void CaptureCamera(bool reset) {
     bool following = !transition && target && targetEntity == Field<void*>(logicalCamera, 0x80C) &&
                      ((mode == 4 && targetPool == &s_pools[0]) || (mode == 18 && targetPool == &s_pools[1]));
     bool continuous = !reset && s_camera.valid && camera == s_camera.camera && frame == s_camera.frame;
-    continuous = continuous && active == s_camera.active && mode == s_camera.mode &&
+    continuous = continuous && active == s_camera.active && mode == s_camera.mode && direction == s_camera.direction &&
                  transition == s_camera.transition && targetEntity == s_camera.targetEntity &&
                  following == s_camera.following;
     if (following && (target != s_camera.target || target->id != s_camera.targetId || !target->continuous))
@@ -614,6 +618,7 @@ void CaptureCamera(bool reset) {
     }
     s_camera.active = active;
     s_camera.mode = mode;
+    s_camera.direction = direction;
     s_camera.transition = transition;
     s_camera.targetEntity = targetEntity;
     s_camera.target = target;
