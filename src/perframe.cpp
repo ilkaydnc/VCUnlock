@@ -294,6 +294,69 @@ static void Audio() {
         e.Bind(skip);
         e.Jmp(0x5FB7F6);
     });
+    // Engine sound level (CAudioManager::ProcessVehicle): steps +0.09 / -0.07 toward the gas pedal once per tick
+    S(0x5F50BE, "D9 05 08 16 6B 00", 0x6B1608, Scale::Linear, 0.09f, "gas pedal audio up");
+    S(0x5F50E0, "D8 25 04 18 6B 00", 0x6B1804, Scale::Linear, 0.07f, "gas pedal audio down");
+    S(0x5F51DE, "D9 05 08 16 6B 00", 0x6B1608, Scale::Linear, 0.09f, "bike gas pedal audio up");
+    S(0x5F5200, "D8 25 04 18 6B 00", 0x6B1804, Scale::Linear, 0.07f, "bike gas pedal audio down");
+    // ... and is cut when the wheels leave the ground. The wheel counts update in ticks, so "just left the ground"
+    // holds on every drawn frame until the next tick: cut on the tick only.
+    Thunk(0x5F2208, 7, "84 D2 74 0C D9 45 00", "engine airborne cut", [](Emit& e) {
+        e.CmpLP();
+        e.Jcc(JE, 0x5F2218);
+        e.Hex("84 D2");  // test dl, dl (wheels on ground last tick)
+        e.Jcc(JE, 0x5F2218);
+        e.Hex("D9 45 00");  // fld dword [ebp]
+        e.Jmp(0x5F220F);
+    });
+    Thunk(0x5F36D2, 9, "80 B8 C6 05 00 00 00 74 12", "reverse gear airborne cut", [](Emit& e) {
+        e.CmpLP();
+        e.Jcc(JE, 0x5F36ED);
+        e.Hex("80 B8 C6 05 00 00 00");  // cmp byte [eax+0x5C6], 0
+        e.Jcc(JE, 0x5F36ED);
+        e.Jmp(0x5F36DB);
+    });
+    // The player's handbrake / lost-traction cuts compare with the last audio frame and stay as they are.
+    Thunk(0x5F13B7, 7, "80 7C 24 40 00 75 30", "player engine airborne cut", [](Emit& e) {
+        e.CmpLP();
+        e.Jcc(JE, 0x5F13BE);
+        e.Hex("80 7C 24 40 00");  // cmp byte [esp+0x40], 0
+        e.Jcc(JNE, 0x5F13EE);
+        e.Jmp(0x5F13BE);
+    });
+    // ProcessPlayersVehicleEngine tells accelerating from the speed now minus the speed ProcessVehicle kept at the last
+    // audio frame (car +0x544, bike +0x490). The speed changes in ticks, so frames without a tick saw no change (first
+    // gear: not accelerating) and reuse the speed the tick frame read.
+    struct SpeedRead {
+        uintptr_t at;
+        const char* bytes;  // fld dword [veh+cache]
+        uint8_t abs;        // ModRM for "op [abs32], veh"
+        const char* what;
+    };
+    static const SpeedRead kSpeedReads[] = {
+        {0x5F0E6C, "D9 85 44 05 00 00", 0x2D, "player car speed change"},   // ebp
+        {0x5F0E9B, "D9 82 90 04 00 00", 0x15, "player bike speed change"},  // edx
+    };
+    static float s_speed;
+    static uint32_t s_speedVeh;
+    for (const SpeedRead& r : kSpeedReads) {
+        static const SpeedRead* s_r;
+        s_r = &r;
+        Thunk(r.at, 6, r.bytes, r.what, [](Emit& e) {
+            e.CmpLP();
+            uint8_t* noTick = e.Jcc8(JE);
+            uintptr_t tick = (uintptr_t)e.p;
+            e.Hex(s_r->bytes);
+            e.B({0xD9, 0x15}); e.U32((uint32_t)(uintptr_t)&s_speed);            // fst dword [s_speed]
+            e.B({0x89, s_r->abs}); e.U32((uint32_t)(uintptr_t)&s_speedVeh);     // mov [s_speedVeh], veh
+            e.Jmp(s_r->at + 6);
+            e.Bind(noTick);
+            e.B({0x39, s_r->abs}); e.U32((uint32_t)(uintptr_t)&s_speedVeh);     // cmp [s_speedVeh], veh
+            e.Jcc(JNE, tick);
+            e.B({0xD9, 0x05}); e.U32((uint32_t)(uintptr_t)&s_speed);            // fld dword [s_speed]
+            e.Jmp(s_r->at + 6);
+        });
+    }
     // Radio fade-in latency and +6 volume ramp (in game / frontend preview)
     Thunk(0x5FAA7D, 6, "80 7B 03 00 74 05", "radio fade in", [](Emit& e) {
         e.CmpLP();
