@@ -62,17 +62,17 @@ constexpr uintptr_t kRwMatrixUpdate = 0x642760, kRwFrameUpdate = 0x643CB0;
 constexpr uintptr_t kRwFrameGetLtm = 0x643D30, kRwCameraSync = 0x649BB0;
 constexpr uintptr_t kSkinHierarchy = 0x57F080, kHierarchyUpdate = 0x645370;
 constexpr uintptr_t kNumLights = 0x9741B8;  // CPointLights::NumLights
-auto GameProcess = (void(__cdecl*)())kGameProcess;
-auto Construct = (void(__cdecl*)())kConstruct;
-auto PreRender = (void(__cdecl*)())kPreRender;
-auto DerivedCamera = (void(__fastcall*)(void*, void*))0x46C296;
-auto SetFov = (void(__cdecl*)(float))0x54A1D0;
-auto RwMatrixUpdate = (void*(__cdecl*)(void*))kRwMatrixUpdate;
-auto RwFrameUpdate = (void*(__cdecl*)(void*))kRwFrameUpdate;
-auto RwFrameGetLtm = (void*(__cdecl*)(void*))kRwFrameGetLtm;
-auto RwCameraSync = (void*(__cdecl*)(void*))kRwCameraSync;
-auto SkinHierarchy = (void*(__cdecl*)(void*))kSkinHierarchy;
-auto HierarchyUpdate = (void*(__cdecl*)(void*))kHierarchyUpdate;
+constexpr GameFn<void(__cdecl*)()> GameProcess{kGameProcess};
+constexpr GameFn<void(__cdecl*)()> Construct{kConstruct};
+constexpr GameFn<void(__cdecl*)()> PreRender{kPreRender};
+constexpr GameFn<void(__fastcall*)(void*, void*)> DerivedCamera{0x46C296};
+constexpr GameFn<void(__cdecl*)(float)> SetFov{0x54A1D0};
+constexpr GameFn<void*(__cdecl*)(void*)> RwMatrixUpdate{kRwMatrixUpdate};
+constexpr GameFn<void*(__cdecl*)(void*)> RwFrameUpdate{kRwFrameUpdate};
+constexpr GameFn<void*(__cdecl*)(void*)> RwFrameGetLtm{kRwFrameGetLtm};
+constexpr GameFn<void*(__cdecl*)(void*)> RwCameraSync{kRwCameraSync};
+constexpr GameFn<void*(__cdecl*)(void*)> SkinHierarchy{kSkinHierarchy};
+constexpr GameFn<void*(__cdecl*)(void*)> HierarchyUpdate{kHierarchyUpdate};
 void(__cdecl* OriginalIdle)(void*);
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -285,8 +285,8 @@ struct MouseState {  // DIMOUSESTATE2
 };
 static_assert(sizeof(MouseState) == 20);
 
-auto InputGetMouseState = (int32_t(__cdecl*)(MouseState*))0x5FEEF0;
-auto IsForegroundApp = (bool(__cdecl*)())0x600D00;
+constexpr GameFn<int32_t(__cdecl*)(MouseState*)> InputGetMouseState{0x5FEEF0};
+constexpr GameFn<bool(__cdecl*)()> IsForegroundApp{0x600D00};
 
 // Mouse motion read by drawn frames since the last tick, and the clicks still to report to it.
 struct MouseInput {
@@ -399,7 +399,7 @@ void CaptureSkin(Slot& root, SkinPose& s, bool continuous) {
     }
     if (!continuous) {
         s.tree = BuildTree(hierarchy, count, s.parent);
-        s.adjustTick = game::FrameCounter - 1;
+        s.adjustTick = game::FrameCounter() - 1;
     }
     s.clump = clump;
     s.hierarchy = hierarchy;
@@ -418,7 +418,7 @@ void ApplySkin(Slot& root, SkinPose& s, const Matrix& built, const Matrix& drawR
     // PreRender's changes to the palette (hidden limbs, the shirt flapping in the wind, Tommy's size) are
     // taken from the first drawn frame of each tick and held until the next, as at 30 fps; the wind is
     // re-randomised on every PreRender.
-    bool fresh = s.adjustTick != game::FrameCounter;
+    bool fresh = s.adjustTick != game::FrameCounter();
     float alpha = s_acc.Alpha();
     Matrix blended[kMaxBones];
     for (int n = 0; n < s.count; n++) {
@@ -437,7 +437,7 @@ void ApplySkin(Slot& root, SkinPose& s, const Matrix& built, const Matrix& drawR
         s.matrices[n] = s.local ? pose : MoveVisual(Identity(), drawRoot, pose);
         RwMatrixUpdate(&s.matrices[n]);
     }
-    s.adjustTick = game::FrameCounter;
+    s.adjustTick = game::FrameCounter();
     s.built = built;
     s.applied = true;
     ++s_skinBlends;
@@ -461,7 +461,7 @@ void RestoreSkin(Slot& root, SkinPose& s, bool alive) {
 // ---------------------------------------------------------------------------------------------------------------------
 
 Pool* GetPool(PoolTrack& track) {
-    auto pool = *(Pool**)track.global;
+    auto pool = *(Pool**)At(track.global);
     if (!pool || !pool->entries || !pool->flags || pool->size <= 0 || pool->size > track.capacity) return nullptr;
     if (pool != track.identity || pool->entries != track.entries || pool->flags != track.flags) {
         for (int i = 0; i < track.capacity; i++) track.slots[i] = Slot{};
@@ -520,7 +520,7 @@ void CapturePool(PoolTrack& track, bool reset) {
         s.continuous = continuous;
         if (&track == &s_pools[2] && s_cutsceneLayout && !skin) {
             if (Skinned(entity)) skin = s_objectSkins[i] = new (std::nothrow) SkinPose;
-            else if (!s_objectParts[i] && Field<uintptr_t>(entity, 0) == kCutsceneVtable)
+            else if (!s_objectParts[i] && Field<uintptr_t>(entity, 0) == At(kCutsceneVtable))
                 s_objectParts[i] = new (std::nothrow) PartPose;
         }
         if (skin) CaptureSkin(s, *skin, continuous && !fresh);
@@ -566,11 +566,11 @@ void SyncCamera(void* camera, void* frame) {
     // is not equivalent. Resolve the world frame and use the verified engine synchronizer.
     RwFrameGetLtm(frame);
     RwCameraSync(camera);
-    Field<Matrix>((void*)kCamera, 0x870) = Field<Matrix>(camera, 0x20);
+    Field<Matrix>((void*)At(kCamera), 0x870) = Field<Matrix>(camera, 0x20);
 }
 
 void CaptureCamera(bool reset) {
-    auto camera = *(uint8_t**)kSceneCamera;
+    auto camera = *(uint8_t**)At(kSceneCamera);
     void* frame = camera ? Field<void*>(camera, 4) : nullptr;
     if (!frame) {
         s_camera.valid = false;
@@ -581,7 +581,7 @@ void CaptureCamera(bool reset) {
         s_camera.valid = false;
         return;
     }
-    void* logicalCamera = (void*)kCamera;
+    void* logicalCamera = (void*)At(kCamera);
     uint8_t active = Field<uint8_t>(logicalCamera, 0x76), transition = Field<uint8_t>(logicalCamera, 0x89);
     void* cam = active < 3 ? (uint8_t*)logicalCamera + 0x188 + active * 0x1CC : nullptr;
     int16_t mode = cam ? Field<int16_t>(cam, 0xC) : -1;
@@ -608,9 +608,9 @@ void CaptureCamera(bool reset) {
         if (Dot(jump, jump) > 400 || d < 0.5f) continuous = false;
     }
     s_camera.previous = continuous ? s_camera.current : m;
-    s_camera.prevFov = continuous ? s_camera.fov : game::MsFov;
+    s_camera.prevFov = continuous ? s_camera.fov : game::MsFov();
     s_camera.current = m;
-    s_camera.fov = game::MsFov;
+    s_camera.fov = game::MsFov();
     if (following) {
         Vec offset = LocalVector(m, target->current.pos - m.pos);
         s_camera.previousOffset = continuous ? s_camera.currentOffset : offset;
@@ -651,16 +651,16 @@ constexpr uintptr_t kPadDisable = 0x7DADA8;                  // CPad::Pads[0].Di
 // SilentPatch makes every vertical mouse read use the horizontal sensitivity, so the vertical turn reads whichever
 // address the game code reads; mode 4's read stands for all of them (SilentPatch may patch after VCUnlock).
 static const char* MouseVPattern() {
-    return mem::Match(kMouseVRead, "D9 05 D8 CB 94 00") ? "D9 05 D8 CB 94 00" : "D9 05 6C C9 A0 00";
+    return mem::Match(At(kMouseVRead), "D9 05 [94CBD8]") ? "D9 05 [94CBD8]" : "D9 05 [A0C96C]";
 }
 static float MouseV() {
-    const uint8_t* p = (const uint8_t*)kMouseVRead;
-    return *(p[0] == 0xD9 && p[1] == 0x05 ? *(float* const*)(p + 2) : (float*)0xA0C96C);
+    const uint8_t* p = (const uint8_t*)At(kMouseVRead);
+    return *(p[0] == 0xD9 && p[1] == 0x05 ? *(float* const*)(p + 2) : (float*)At(0xA0C96C));
 }
 
 uint8_t* ActiveCam() {
-    uint8_t active = Field<uint8_t>((void*)kCamera, 0x76);
-    return active < 3 ? (uint8_t*)kCamera + 0x188 + active * 0x1CC : nullptr;
+    uint8_t active = Field<uint8_t>((void*)At(kCamera), 0x76);
+    return active < 3 ? (uint8_t*)At(kCamera) + 0x188 + active * 0x1CC : nullptr;
 }
 
 // fov: the FOV the next tick's mouse code uses (sniper, camera and mode 39 keep their zoom).
@@ -668,7 +668,7 @@ LookMode MouseMode(void* cam, int16_t mode, float fov) {
     constexpr float kDown = -1.5620697f, kUp = 1.0471976f;
     switch (mode) {
         case 4:
-            if (!*(uint8_t*)0xA0FB55) return {};
+            if (!*(uint8_t*)At(0xA0FB55)) return {};
             return {-2.5f, 70, kDown, 0.7853982f, true};
         case 7:
         case 46:
@@ -693,9 +693,9 @@ LookMode MouseMode(void* cam, int16_t mode, float fov) {
 
 // Mode 4 replaces the pitch input with a return step while fading or with player controls disabled.
 bool AlphaReturn() {
-    uint8_t fade = *(uint8_t*)0xA0FB1E;
-    if (*(uint8_t*)0x7E3EFB && *(int16_t*)0x7E3FD0 == 1 && fade > *(uint16_t*)0x689CB0) return true;
-    return fade > 200 || (*(uint16_t*)kPadDisable & 0x20);
+    uint8_t fade = *(uint8_t*)At(0xA0FB1E);
+    if (*(uint8_t*)At(0x7E3EFB) && *(int16_t*)At(0x7E3FD0) == 1 && fade > *(uint16_t*)At(0x689CB0)) return true;
+    return fade > 200 || (*(uint16_t*)At(kPadDisable) & 0x20);
 }
 
 float Heading(Vec v) { return std::atan2(-v.x, v.y); }
@@ -711,14 +711,14 @@ void CaptureLook(bool reset) {
     float alpha = Field<float>(cam, 0xAC), beta = Field<float>(cam, 0xBC), fov = Field<float>(cam, 0xB4);
     void* target = Field<void*>(cam, 0x1B0);
     bool continuous = !reset && l.valid && l.cam == cam && l.mode == mode && l.target == target &&
-                      !Field<uint8_t>((void*)kCamera, 0x89);
+                      !Field<uint8_t>((void*)At(kCamera), 0x89);
     if (!continuous) l.yawBlocked = false;
     l.yaw = l.pitch = 0;
     LookMode m = MouseMode(cam, mode, l.fov);
     if (continuous && m.valid) {
-        float x = *(float*)kMouseX, y = *(float*)kMouseY, scale = m.fov * 0.0125f;
-        if ((x != 0 || y != 0) && (mode != 4 || !*(uint16_t*)kPadDisable)) {
-            float dB = WrapPi(beta - l.beta), predB = *(float*)kMouseH * m.kx * x * scale;
+        float x = *(float*)At(kMouseX), y = *(float*)At(kMouseY), scale = m.fov * 0.0125f;
+        if ((x != 0 || y != 0) && (mode != 4 || !*(uint16_t*)At(kPadDisable))) {
+            float dB = WrapPi(beta - l.beta), predB = *(float*)At(kMouseH) * m.kx * x * scale;
             bool match = std::fabs(dB - predB) < 1e-4f;
             if (match) l.yaw = dB;
             if (x != 0) l.yawBlocked = !match;
@@ -746,17 +746,18 @@ void CaptureLook(bool reset) {
 bool PresentedLook(float alpha, float& yaw, float& pitch, float& pedYaw, LookMode& m) {
     LookHistory& l = s_look;
     uint8_t* cam = ActiveCam();
-    if (!l.valid || cam != l.cam || Field<int16_t>(cam, 0xC) != l.mode || Field<uint8_t>((void*)kCamera, 0x89) ||
+    if (!l.valid || cam != l.cam || Field<int16_t>(cam, 0xC) != l.mode || Field<uint8_t>((void*)At(kCamera), 0x89) ||
         Field<uint8_t>(cam, 0xA))
         return false;
     m = MouseMode(cam, l.mode, Field<float>(cam, 0xB4));
     if (!m.valid) return false;
-    float x = (*(uint8_t*)0xA0FA54 ? -1.0f : 1.0f) * (float)s_mouse.x;  // UpdateMouse's invert flags
-    float y = (*(uint8_t*)0xA0FA55 ? -1.0f : 1.0f) * (float)s_mouse.y;
-    bool use = (x != 0 || y != 0) && (l.mode != 4 || !*(uint16_t*)kPadDisable);
+    float x = (*(uint8_t*)At(0xA0FA54) ? -1.0f : 1.0f) * (float)s_mouse.x;  // UpdateMouse's invert flags
+    float y = (*(uint8_t*)At(0xA0FA55) ? -1.0f : 1.0f) * (float)s_mouse.y;
+    bool use = (x != 0 || y != 0) && (l.mode != 4 || !*(uint16_t*)At(kPadDisable));
     float scale = m.fov * 0.0125f;
     // m_bUseTransitionBeta (+0x67) sets the yaw itself.
-    float pb = use && !l.yawBlocked && !Field<uint8_t>((void*)kCamera, 0x67) ? *(float*)kMouseH * m.kx * x * scale : 0;
+    bool turn = use && !l.yawBlocked && !Field<uint8_t>((void*)At(kCamera), 0x67);
+    float pb = turn ? *(float*)At(kMouseH) * m.kx * x * scale : 0;
     float pa = use && !(l.mode == 4 && AlphaReturn()) ? MouseV() * 4 * y * scale : 0;
     yaw = (1 - alpha) * l.yaw + pb;
     pitch = (1 - alpha) * l.pitch + pa;
@@ -781,7 +782,7 @@ int32_t ReadMouse() {
 }
 
 void PollMouse() {
-    auto ps = *(uint8_t**)0x9B38FC;  // RsGlobal.ps; the mouse device at +0x1C
+    auto ps = *(uint8_t**)At(0x9B38FC);  // RsGlobal.ps; the mouse device at +0x1C
     if (!s_mouseLayout) return;
     if (!IsForegroundApp() || !ps || !Field<void*>(ps, 0x1C)) {
         ClearMouse();
@@ -832,8 +833,8 @@ void Capture(bool reset) {
 
 void ApplyCamera() {
     if (!s_started || !s_camera.valid || s_cameraBackup.applied) return;
-    if (*(void**)kSceneCamera != s_camera.camera || Field<void*>(s_camera.camera, 4) != s_camera.frame) return;
-    void* camera = (void*)kCamera;
+    if (*(void**)At(kSceneCamera) != s_camera.camera || Field<void*>(s_camera.camera, 4) != s_camera.frame) return;
+    void* camera = (void*)At(kCamera);
     auto& b = s_cameraBackup;
     b.camera = s_camera.camera;
     b.frame = s_camera.frame;
@@ -844,7 +845,7 @@ void ApplyCamera() {
     b.front[0] = Field<float>(camera, 0xD4);
     b.front[1] = Field<float>(camera, 0xD8);
     b.orientation = Field<float>(camera, 0x160);
-    b.fov = game::MsFov;
+    b.fov = game::MsFov();
     memcpy(b.planes, (uint8_t*)camera + 0x8B8, sizeof b.planes);
     b.rw = Field<Matrix>(b.frame, 0x10);
     b.rwView = Field<Matrix>(b.camera, 0x20);
@@ -904,7 +905,7 @@ void ApplyCamera() {
 
 size_t ContactOffset(uint8_t* entity) {
     uintptr_t vtable = Field<uintptr_t>(entity, 0);
-    return !s_contactLayout ? 0 : vtable == kAutomobileVtable ? 0x3E4 : vtable == kBikeVtable ? 0x330 : 0;
+    return !s_contactLayout ? 0 : vtable == At(kAutomobileVtable) ? 0x3E4 : vtable == At(kBikeVtable) ? 0x330 : 0;
 }
 
 void MoveContacts(Slot& s, ContactPoints& c, const Matrix& logical) {
@@ -930,7 +931,8 @@ void RestoreContacts(Slot& s, ContactPoints& c, bool alive) {
 }
 
 void ResetLean(Slot& s, LeanMatrix& l) {
-    if (!s_leanLayout || Field<uintptr_t>(s.entity, 0) != kBikeVtable || Field<void*>(s.entity, 0x2C4 + 0x40)) return;
+    if (!s_leanLayout || Field<uintptr_t>(s.entity, 0) != At(kBikeVtable) || Field<void*>(s.entity, 0x2C4 + 0x40))
+        return;
     l.valid = Field<uint8_t>(s.entity, 0x2C0) != 0;
     l.backup = Field<Matrix>(s.entity, 0x2C4);
     Field<uint8_t>(s.entity, 0x2C0) = 0;
@@ -939,7 +941,7 @@ void ResetLean(Slot& s, LeanMatrix& l) {
 
 void RestoreLean(Slot& s, LeanMatrix& l, bool alive) {
     if (!l.applied) return;
-    if (alive && Field<uintptr_t>(s.entity, 0) == kBikeVtable) {
+    if (alive && Field<uintptr_t>(s.entity, 0) == At(kBikeVtable)) {
         Field<Matrix>(s.entity, 0x2C4) = l.backup;
         Field<uint8_t>(s.entity, 0x2C0) = l.valid;
     }
@@ -989,7 +991,7 @@ void ApplyRoots(PoolTrack& track) {
 // ---------------------------------------------------------------------------------------------------------------------
 
 bool BoneAttached(uint8_t* entity) {
-    return s_cutsceneLayout && Field<uintptr_t>(entity, 0) == kCutsceneVtable && Field<void*>(entity, 0x198) &&
+    return s_cutsceneLayout && Field<uintptr_t>(entity, 0) == At(kCutsceneVtable) && Field<void*>(entity, 0x198) &&
            Field<void*>(entity, 0x19C);
 }
 
@@ -1072,8 +1074,10 @@ void MapWheels(uint8_t* entity, void** frames, int count, PartPose& p) {
     memset(p.side, 0, sizeof p.side);
     if (!s_wheelLayout) return;
     uintptr_t vtable = Field<uintptr_t>(entity, 0);
-    const WheelNode* nodes = vtable == kAutomobileVtable ? kCarWheels : vtable == kBikeVtable ? kBikeWheels : nullptr;
-    int n = vtable == kAutomobileVtable ? 6 : 2;
+    const WheelNode* nodes = vtable == At(kAutomobileVtable) ? kCarWheels
+                             : vtable == At(kBikeVtable)     ? kBikeWheels
+                                                             : nullptr;
+    int n = vtable == At(kAutomobileVtable) ? 6 : 2;
     if (!nodes) return;
     for (int i = 0; i < count; i++)
         for (int k = 0; k < n; k++)
@@ -1099,7 +1103,7 @@ bool BlendWheel(PartPose& p, int n, void* frame, float alpha) {
 
 // Runs after PreRender: by then the parts hold the pose for the current tick.
 void ApplyParts() {
-    uint32_t tick = game::FrameCounter;
+    uint32_t tick = game::FrameCounter();
     float alpha = s_acc.Alpha();
     for (int t = 1; t < 3; t++) {
         auto& track = s_pools[t];
@@ -1116,7 +1120,7 @@ void ApplyParts() {
                 continue;
             }
             // Objects: animated cutscene props only. A prop moved onto a blended bone is drawn as it is.
-            if (t == 2 && (s.reposed || Field<uintptr_t>(s.entity, 0) != kCutsceneVtable || Skinned(s.entity))) {
+            if (t == 2 && (s.reposed || Field<uintptr_t>(s.entity, 0) != At(kCutsceneVtable) || Skinned(s.entity))) {
                 p.valid = false;
                 continue;
             }
@@ -1206,14 +1210,14 @@ void RestoreParts(Slot& s, PartPose& p, bool alive) {
 //  PRESENTATION: PARTICLES
 // ---------------------------------------------------------------------------------------------------------------------
 
-uint8_t* Particle(int i) { return (uint8_t*)kParticleArray + i * kParticleStride; }
+uint8_t* Particle(int i) { return (uint8_t*)At(kParticleArray) + i * kParticleStride; }
 
 // Marks the slots on the free list; false if the list does not look like the verified layout.
 bool FreeParticles(bool* freeSlots) {
     memset(freeSlots, 0, kMaxParticles);
-    auto p = *(uint8_t**)kParticleFree;
+    auto p = *(uint8_t**)At(kParticleFree);
     for (int n = 0; p; n++) {
-        uintptr_t offset = (uintptr_t)p - kParticleArray;
+        uintptr_t offset = (uintptr_t)p - At(kParticleArray);
         if (n == kMaxParticles || offset >= (uintptr_t)kMaxParticles * kParticleStride || offset % kParticleStride)
             return false;
         freeSlots[offset / kParticleStride] = true;
@@ -1284,13 +1288,13 @@ void RestoreParticles() {
 
 void __cdecl ParticleRenderHook() {
     ShiftParticles();
-    ((void(__cdecl*)())0x5607B0)();
+    ((void(__cdecl*)())At(0x5607B0))();
     RestoreParticles();
 }
 
 // AddParticle took a slot from the free list (ebp = the particle).
 void ParticleAdded(fix::Regs* r, fix::Fpu*) {
-    uintptr_t offset = r->ebp - kParticleArray;
+    uintptr_t offset = r->ebp - At(kParticleArray);
     if (offset < (uintptr_t)kMaxParticles * kParticleStride && !(offset % kParticleStride))
         s_particleSerial[offset / kParticleStride] = ++s_particleSerials ? s_particleSerials : ++s_particleSerials;
 }
@@ -1302,7 +1306,7 @@ void ParticleAdded(fix::Regs* r, fix::Fpu*) {
 // Puts back everything a drawn frame changed, so the next tick only ever sees its own state.
 void Restore() {
     for (auto& track : s_pools) {
-        auto pool = *(Pool**)track.global;
+        auto pool = *(Pool**)At(track.global);
         for (int i = 0; i < track.capacity; i++) {
             Slot& s = track.slots[i];
             if (!s.applied) continue;
@@ -1334,10 +1338,10 @@ void Restore() {
         }
     }
     RestoreParticles();
-    s_waveMs = game::TimeInMs;
+    s_waveMs = game::TimeInMs();
     auto& b = s_cameraBackup;
     if (b.applied) {
-        void* camera = (void*)kCamera;
+        void* camera = (void*)At(kCamera);
         Field<Matrix>(camera, 0) = b.world;
         Field<Matrix>(camera, 0x820) = b.inverse;
         Field<Matrix>(camera, 0x870) = b.view;
@@ -1347,7 +1351,7 @@ void Restore() {
         Field<float>(camera, 0x160) = b.orientation;
         memcpy((uint8_t*)camera + 0x8B8, b.planes, sizeof b.planes);
         SetFov(b.fov);
-        if (*(void**)kSceneCamera == b.camera && Field<void*>(b.camera, 4) == b.frame) {
+        if (*(void**)At(kSceneCamera) == b.camera && Field<void*>(b.camera, 4) == b.frame) {
             Field<Matrix>(b.frame, 0x10) = b.rw;
             Field<Matrix>(b.camera, 0x20) = b.rwView;
             RwMatrixUpdate((uint8_t*)b.frame + 0x10);
@@ -1371,9 +1375,9 @@ void Restore() {
 void __cdecl Process() {
     s_drawing = false;
     s_frameTicks = 0;
-    s_waveMs = game::TimeInMs;
-    bool paused = game::UserPause || game::CodePause || game::MenuActive || game::MenuGameNotLoaded ||
-                  game::GameState != 9;
+    s_waveMs = game::TimeInMs();
+    bool paused = game::UserPause() || game::CodePause() || game::MenuActive() || game::MenuGameNotLoaded() ||
+                  game::GameState() != 9;
     if (paused) {
         s_started = false;
         s_acc.Reset();
@@ -1382,7 +1386,7 @@ void __cdecl Process() {
         ClearMouse();
         // The original paused path still polls input, runs the frontend and services streaming.
         GameProcess();
-        s_waveMs = game::TimeInMs;
+        s_waveMs = game::TimeInMs();
         s_drawing = true;
         return;
     }
@@ -1392,9 +1396,9 @@ void __cdecl Process() {
         fx::Reset();
         s_started = true;
         s_tickLights = 0;
-        s_tickMsPrevious = s_tickMsCurrent = game::TimeInMs;
+        s_tickMsPrevious = s_tickMsCurrent = game::TimeInMs();
         s_statStart = timer::Now();
-        s_clockStart = game::TimeInMs;
+        s_clockStart = game::TimeInMs();
         s_ticks = s_frames = s_skippedParticles = s_blends = s_skinBlends = s_followBlends = s_partBlends =
             s_wheelBlends = 0;
         s_particleBlends = s_attachments = s_propBlends = s_mouseTurns = 0;
@@ -1405,11 +1409,11 @@ void __cdecl Process() {
     s_acc.Add(s_delta);
     while (s_acc.Take()) {
         timer::FixedTick();
-        s_waveMs = game::TimeInMs;
+        s_waveMs = game::TimeInMs();
         s_tickMsPrevious = s_tickMsCurrent;
-        s_tickMsCurrent = game::TimeInMs;
+        s_tickMsCurrent = game::TimeInMs();
         // Idle clears the point light list once per drawn frame (0x4A5C66); clear it per tick instead.
-        *(int32_t*)kNumLights = 0;
+        *(int32_t*)At(kNumLights) = 0;
         fx::BeforeTick(s_frameTicks);
         s_inTick = true;
         GameProcess();
@@ -1419,7 +1423,8 @@ void __cdecl Process() {
         Capture(false);
         fx::AfterTick();
         // A tick can open the menu or initiate a load. Never continue a stale catch-up batch.
-        if (game::UserPause || game::CodePause || game::MenuActive || *(uint8_t*)0x868671 || *(uint8_t*)0xA0FB78) {
+        if (game::UserPause() || game::CodePause() || game::MenuActive() || *(uint8_t*)At(0x868671) ||
+            *(uint8_t*)At(0xA0FB78)) {
             s_acc.Reset();
             s_started = false;
             break;
@@ -1427,9 +1432,9 @@ void __cdecl Process() {
     }
     // Lights registered by the last tick (fires, explosions, muzzle flashes) stay in the list for
     // every drawn frame until the next tick; render-path lights are appended after them.
-    if (s_frameTicks) s_tickLights = *(int32_t*)kNumLights;
-    else *(int32_t*)kNumLights = s_tickLights;
-    bool nowPaused = game::UserPause || game::CodePause || game::MenuActive;
+    if (s_frameTicks) s_tickLights = *(int32_t*)At(kNumLights);
+    else *(int32_t*)At(kNumLights) = s_tickLights;
+    bool nowPaused = game::UserPause() || game::CodePause() || game::MenuActive();
     timer::FixedRender(nowPaused ? 0 : s_frameTicks);
     s_drawing = true;
     ++s_frames;
@@ -1446,7 +1451,7 @@ void __cdecl ConstructHook() {
         fx::BeginDraw(s_acc.Alpha(), s_frameTicks);
     }
     ApplyCamera();
-    if (s_started) fx::AfterCamera(Field<Vec>((void*)kCamera, 0x30));
+    if (s_started) fx::AfterCamera(Field<Vec>((void*)At(kCamera), 0x30));
     if (s_started)
         for (auto& track : s_pools) ApplyRoots(track);
     Construct();
@@ -1463,7 +1468,7 @@ void __cdecl PreRenderHook() {
 void ParticleGate(fix::Regs* r, fix::Fpu*) {
     if (s_drawing && !s_frameTicks) {
         ++s_skippedParticles;
-        r->cont = 0x563BCC;  // original null-return path after the already-executed prologue
+        r->cont = At(0x563BCC);  // original null-return path after the already-executed prologue
     }
 }
 
@@ -1476,11 +1481,11 @@ void __cdecl IdleHook(void* arg) {
         Log("fixed: %.2f ticks/s, %.1f render fps, clock %.4fx, alpha %.3f, blends %u, skin palettes %u, follow camera "
             "blends %u, vehicle parts %u, wheel rolls %u, particles %u, bone props %u, prop parts %u, mouse turns %u, "
             "suppressed render particles %u, dropped %.2f ms",
-            s_ticks / elapsed, s_frames / elapsed, (game::TimeInMs - s_clockStart) / (elapsed * 1000), s_acc.Alpha(),
+            s_ticks / elapsed, s_frames / elapsed, (game::TimeInMs() - s_clockStart) / (elapsed * 1000), s_acc.Alpha(),
             s_blends, s_skinBlends, s_followBlends, s_partBlends, s_wheelBlends, s_particleBlends, s_attachments,
             s_propBlends, s_mouseTurns, s_skippedParticles, s_acc.dropped);
         s_statStart = timer::Now();
-        s_clockStart = game::TimeInMs;
+        s_clockStart = game::TimeInMs();
         s_ticks = s_frames = s_skippedParticles = s_blends = s_skinBlends = s_followBlends = s_partBlends =
             s_wheelBlends = 0;
         s_particleBlends = s_attachments = s_propBlends = s_mouseTurns = 0;
@@ -1547,7 +1552,7 @@ void ProcessFrame(double ms) {
     Restore();
     FrameDelta(ms);
     timer::FixedRender(0);
-    *(int32_t*)kNumLights = 0;  // Idle's per-frame reset at 0x4A5C66
+    *(int32_t*)At(kNumLights) = 0;  // Idle's per-frame reset at 0x4A5C66
     Process();
 }
 
@@ -1564,7 +1569,7 @@ double DroppedMs() { return s_acc.dropped; }
 bool ParticleSuppressed() {
     fix::Regs r{};
     ParticleGate(&r, nullptr);
-    return r.cont == 0x563BCC;
+    return r.cont == At(0x563BCC);
 }
 }  // namespace testing
 #endif
@@ -1575,37 +1580,37 @@ bool ParticleSuppressed() {
 
 bool Install() {
     PatchGroup g("fixed: Steam update/render and matrix layouts");
-    g.Expect(game::Idle, "53 56 57 55 83 EC 20 E8 94 B1 02 00")
-        .Expect(0x4A5C66, "C7 05 B8 41 97 00 00 00 00 00")
-        .Expect(0x4A5C70, "E8 5B E6 FF FF")
-        .Expect(0x4A5D15, "E8 06 44 02 00")
-        .Expect(0x4A5D1A, "E8 91 43 02 00")
-        .Expect(kGameProcess, "53 55 E8 B9 72 00 00")
-        .Expect(kConstruct, "53 56 57 55 83 EC 18")
-        .Expect(kPreRender, "53 56 55 31 ED 83 3D EC C1 A0 00 00")
-        .Expect(0x451B70, "69 C0 DC 05 00 00 03 06 5E 5B")
-        .Expect(0x451BB0, "69 C0 D8 06 00 00 03 06")
-        .Expect(0x4C0E11, "69 C0 A0 01 00 00")
-        .Expect(0x4C0225, "A3 E8 CB 94 00")
-        .Expect(0x489240, "8B 51 4C 85 D2 75 01 C3 80 3A 01 75 00 8B 42 04")
-        .Expect(kRwMatrixUpdate, "8B 44 24 04 81 60 0C FC FF FD FF C3")
-        .Expect(kRwFrameUpdate, "8B 44 24 04 33 C9 8B 90 A0 00 00 00")
-        .Expect(0x643F27, "8B 90 98 00 00 00")                    // RwFrameRemoveChild: parent->child +0x98
-        .Expect(0x643F31, "8B 91 9C 00 00 00 89 90 98 00 00 00")  //   next sibling +0x9C
-        .Expect(kRwFrameGetLtm, "56 8B 74 24 08 8B 86 A0 00 00 00")
-        .Expect(kRwCameraSync, "83 EC 0C 56 8B 74 24 14 83 7E 14 01")
-        .Expect(kSkinHierarchy, "83 EC 08 C7 44 24 04 00 00 00 00")
-        .Expect(kHierarchyUpdate, "81 EC 14 0A 00 00 53 55 8B AC 24 20 0A 00 00")
-        .Expect(0x645469, "8B 45 04 8D 8C 24 64 02 00 00 89 4C 24 14")
-        .Expect(0x6457D4, "8B 4D 18 C1 E0 06 03 41 08")
-        .Expect(0x46C296, "53 89 CB 83 EC 50")
-        .Expect(0x46C527, "0F B6 4B 76 69 C9 CC 01 00 00 83 BC 0B 38 03 00 00 00")
-        .Expect(0x46C53B, "8B 83 0C 08 00 00 89 84 0B 38 03 00 00 0F B6 43 76 40 99")
-        .Expect(0x4839F1, "0F BF 45 0C 48 83 F8 2D")
-        .Expect(0x46C7DE, "80 BB 89 00 00 00 00")
-        .Expect(0x46DBAD, "8B 83 08 08 00 00 59 8B 78 04")
-        .Expect(0x46DBB7, "D9 43 30 8D 47 10 D9 58 30 D9 40 30 D9 9B D8 07 00 00")
-        .Expect(0x563BBA, "80 3D 3F FB A0 00 00");
+    g.Expect(At(game::Idle), "53 56 57 55 83 EC 20 E8 <4D0DF0>")
+        .Expect(At(0x4A5C66), "C7 05 [9741B8] 00 00 00 00")
+        .Expect(At(0x4A5C70), "E8 <4A42D0>")
+        .Expect(At(0x4A5D15), "E8 <4CA120>")
+        .Expect(At(0x4A5D1A), "E8 <4CA0B0>")
+        .Expect(At(kGameProcess), "53 55 E8 <4AB590>")
+        .Expect(At(kConstruct), "53 56 57 55 83 EC 18")
+        .Expect(At(kPreRender), "53 56 55 31 ED 83 3D [A0C1EC] 00")
+        .Expect(At(0x451B70), "69 C0 DC 05 00 00 03 06 5E 5B")
+        .Expect(At(0x451BB0), "69 C0 D8 06 00 00 03 06")
+        .Expect(At(0x4C0E11), "69 C0 A0 01 00 00")
+        .Expect(At(0x4C0225), "A3 [94CBE8]")
+        .Expect(At(0x489240), "8B 51 4C 85 D2 75 01 C3 80 3A 01 75 00 8B 42 04")
+        .Expect(At(kRwMatrixUpdate), "8B 44 24 04 81 60 0C FC FF FD FF C3")
+        .Expect(At(kRwFrameUpdate), "8B 44 24 04 33 C9 8B 90 A0 00 00 00")
+        .Expect(At(0x643F27), "8B 90 98 00 00 00")                    // RwFrameRemoveChild: parent->child +0x98
+        .Expect(At(0x643F31), "8B 91 9C 00 00 00 89 90 98 00 00 00")  //   next sibling +0x9C
+        .Expect(At(kRwFrameGetLtm), "56 8B 74 24 08 8B 86 A0 00 00 00")
+        .Expect(At(kRwCameraSync), "83 EC 0C 56 8B 74 24 14 83 7E 14 01")
+        .Expect(At(kSkinHierarchy), "83 EC 08 C7 44 24 04 00 00 00 00")
+        .Expect(At(kHierarchyUpdate), "81 EC 14 0A 00 00 53 55 8B AC 24 20 0A 00 00")
+        .Expect(At(0x645469), "8B 45 04 8D 8C 24 64 02 00 00 89 4C 24 14")
+        .Expect(At(0x6457D4), "8B 4D 18 C1 E0 06 03 41 08")
+        .Expect(At(0x46C296), "53 89 CB 83 EC 50")
+        .Expect(At(0x46C527), "0F B6 4B 76 69 C9 CC 01 00 00 83 BC 0B 38 03 00 00 00")
+        .Expect(At(0x46C53B), "8B 83 0C 08 00 00 89 84 0B 38 03 00 00 0F B6 43 76 40 99")
+        .Expect(At(0x4839F1), "0F BF 45 0C 48 83 F8 2D")
+        .Expect(At(0x46C7DE), "80 BB 89 00 00 00 00")
+        .Expect(At(0x46DBAD), "8B 83 08 08 00 00 59 8B 78 04")
+        .Expect(At(0x46DBB7), "D9 43 30 8D 47 10 D9 58 30 D9 40 30 D9 9B D8 07 00 00")
+        .Expect(At(0x563BBA), "80 3D [A0FB3F] 00");
     // All or nothing: a partial install would leave the world without ticks. Every byte the core patches
     // below rely on is verified here, so past the code allocation nothing can fail.
     if (!g.Ok() || !timer::Verify()) {
@@ -1614,97 +1619,97 @@ bool Install() {
     }
 
     PatchGroup w("fixed: vehicle wheel layouts");
-    w.Expect(0x59E476, "C7 00 90 9D 69 00 8B 4C 24 08 81 C1 A0 02 00 00")           // CAutomobile ctor: vtable
-        .Expect(0x61537C, "C7 00 04 6B 6D 00")                                      // CBike ctor: vtable
+    w.Expect(At(0x59E476), "C7 00 [699D90] 8B 4C 24 08 81 C1 A0 02 00 00")           // CAutomobile ctor: vtable
+        .Expect(At(0x61537C), "C7 00 [6D6B04]")                                      // CBike ctor: vtable
         // CAutomobile::PreRender, per wheel: the frame, then SetRotate(+-angle, 0, ...)
-        .Expect(0x590096, "8B 85 98 03 00 00")                                      // RF frame
-        .Expect(0x5900E6, "FF B5 D8 04 00 00")                                      //   +angle FR
-        .Expect(0x58FAEA, "8B 85 9C 03 00 00 85 C0 0F 84 C0 02 00 00")              // RM frame
-        .Expect(0x58FB42, "FF B5 DC 04 00 00")                                      //   +angle RR
-        .Expect(0x58EF71, "8B 85 A0 03 00 00")                                      // RB frame
-        .Expect(0x58EFBA, "FF B5 DC 04 00 00 E8 7B 4B E9 FF D9 9C 24 A4 01 00 00")  //   +angle RR
-        .Expect(0x590D58, "8B 85 A4 03 00 00")                                      // LF frame
-        .Expect(0x590E21, "D9 85 D0 04 00 00 FF 35 E4 95 69 00 50 D9 E0 D9 1C 24")  //   -angle FL
-        .Expect(0x58FDB8, "8B 85 A8 03 00 00")                                      // LM frame
-        .Expect(0x58FE10, "D9 85 D4 04 00 00 50 D9 E0")                             //   -angle RL
-        .Expect(0x58F528, "8B 85 AC 03 00 00")                                      // LB frame
-        .Expect(0x58F578, "D9 85 D4 04 00 00 50 D9 E0 D9 1C 24 E8 B7 45 E9 FF")     //   -angle RL
+        .Expect(At(0x590096), "8B 85 98 03 00 00")                                   // RF frame
+        .Expect(At(0x5900E6), "FF B5 D8 04 00 00")                                   //   +angle FR
+        .Expect(At(0x58FAEA), "8B 85 9C 03 00 00 85 C0 0F 84 <58FDB8>")              // RM frame
+        .Expect(At(0x58FB42), "FF B5 DC 04 00 00")                                   //   +angle RR
+        .Expect(At(0x58EF71), "8B 85 A0 03 00 00")                                   // RB frame
+        .Expect(At(0x58EFBA), "FF B5 DC 04 00 00 E8 <423B40> D9 9C 24 A4 01 00 00")  //   +angle RR
+        .Expect(At(0x590D58), "8B 85 A4 03 00 00")                                   // LF frame
+        .Expect(At(0x590E21), "D9 85 D0 04 00 00 FF 35 [6995E4] 50 D9 E0 D9 1C 24")  //   -angle FL
+        .Expect(At(0x58FDB8), "8B 85 A8 03 00 00")                                   // LM frame
+        .Expect(At(0x58FE10), "D9 85 D4 04 00 00 50 D9 E0")                          //   -angle RL
+        .Expect(At(0x58F528), "8B 85 AC 03 00 00")                                   // LB frame
+        .Expect(At(0x58F578), "D9 85 D4 04 00 00 50 D9 E0 D9 1C 24 E8 <423B40>")     //   -angle RL
         // CBike::PreRender, per wheel: the frame, then SetRotate(angle, ...)
-        .Expect(0x60C9C7, "8B 83 B0 02 00 00")                                      // front frame
-        .Expect(0x60CA8E, "FF B3 10 04 00 00 DD D8 E8 65 26 ED FF")                 //   angle
-        .Expect(0x60CB4D, "8B 83 B4 02 00 00")                                      // rear frame
-        .Expect(0x60CBD0, "FF B3 14 04 00 00 DD D8 E8 23 25 ED FF");                //   angle
+        .Expect(At(0x60C9C7), "8B 83 B0 02 00 00")                                   // front frame
+        .Expect(At(0x60CA8E), "FF B3 10 04 00 00 DD D8 E8 <4DF100>")                 //   angle
+        .Expect(At(0x60CB4D), "8B 83 B4 02 00 00")                                   // rear frame
+        .Expect(At(0x60CBD0), "FF B3 14 04 00 00 DD D8 E8 <4DF100>");                //   angle
     s_wheelLayout = w.Ok();
     if (!s_wheelLayout) Log("fixed: wheel layout differs; wheels blend without the game's wheel angles");
 
     PatchGroup h("fixed: skin hierarchy layout");
-    h.Expect(0x645477, "8B 4D 10")                        // HAnimHierarchy::pNodeInfo +0x10
-        .Expect(0x645486, "83 C1 08")                     //   node flags +8, 16-byte records
-        .Expect(0x64573A, "8B 54 24 18 8B 02 83 E0 03");  //   PUSH/POP bits
+    h.Expect(At(0x645477), "8B 4D 10")                        // HAnimHierarchy::pNodeInfo +0x10
+        .Expect(At(0x645486), "83 C1 08")                     //   node flags +8, 16-byte records
+        .Expect(At(0x64573A), "8B 54 24 18 8B 02 83 E0 03");  //   PUSH/POP bits
     s_treeLayout = h.Ok();
 
     PatchGroup c("fixed: cutscene object layout");
-    c.Expect(0x4E0398, "C7 03 94 05 69 00 8A 43 50 24 07")  // CCutsceneObject ctor: vtable
-        .Expect(0x4E002A, "8B 83 98 01 00 00")              //   attached bone matrix +0x198
-        .Expect(0x4E0038, "8B 8B 9C 01 00 00 85 C9")        //   attached parent +0x19C
-        .Expect(0x406640, "89 AB 9C 01 00 00")
-        .Expect(0x406649, "89 BB 98 01 00 00");
+    c.Expect(At(0x4E0398), "C7 03 [690594] 8A 43 50 24 07")  // CCutsceneObject ctor: vtable
+        .Expect(At(0x4E002A), "8B 83 98 01 00 00")           //   attached bone matrix +0x198
+        .Expect(At(0x4E0038), "8B 8B 9C 01 00 00 85 C9")     //   attached parent +0x19C
+        .Expect(At(0x406640), "89 AB 9C 01 00 00")
+        .Expect(At(0x406649), "89 BB 98 01 00 00");
     s_cutsceneLayout = c.Ok();
 
     PatchGroup p("fixed: particle layout");
-    p.Expect(0x565850, "C7 05 34 F0 97 00 EC D4 76 00")  // free list head = particle array
-        .Expect(0x565860, "81 FA ED 02 00 00 7C 0C")     //   750 particles
-        .Expect(0x565877, "6B C0 58 05 EC D4 76 00")     //   0x58 bytes each
-        .Expect(0x56587F, "89 81 40 D5 76 00")           //   next +0x54
-        .Expect(0x564782, "8B 45 54 A3 34 F0 97 00")     // AddParticle pops the free list
-        .Expect(0x561FF8, "D8 4B 0C")                    // render reads position +0
-        .Expect(0x56202C, "8D 33");
+    p.Expect(At(0x565850), "C7 05 [97F034] [76D4EC]")     // free list head = particle array
+        .Expect(At(0x565860), "81 FA ED 02 00 00 7C 0C")  //   750 particles
+        .Expect(At(0x565877), "6B C0 58 05 [76D4EC]")     //   0x58 bytes each
+        .Expect(At(0x56587F), "89 81 [76D540]")           //   next +0x54
+        .Expect(At(0x564782), "8B 45 54 A3 [97F034]")     // AddParticle pops the free list
+        .Expect(At(0x561FF8), "D8 4B 0C")                 // render reads position +0
+        .Expect(At(0x56202C), "8D 33");
     s_particleLayout = p.Ok();
 
     PatchGroup ml("fixed: mouse look layout");
-    ml.Expect(0x4AD738, "8D 44 24 0C 50 E8 AE 17 15 00 85 C0 59 0F 8C")           // UpdateMouse: the only mouse read
-        .Expect(0x4AD75E, "80 3D 55 FA A0 00 00")
-        .Expect(0x4AD76A, "80 3D 54 FA A0 00 00")                                 //   invert y/x
-        .Expect(0x5FEEF0, "A1 FC 38 9B 00 57 83 78 1C 00")                        // _InputGetMouseState: device ps+0x1C
-        .Expect(0x600D00, "31 C9 31 C0 83 3D F4 49 6D 00 00")                     // IsForegroundApp
-        .Expect(0x47BD8B, "C7 83 B4 00 00 00 00 00 8C 42")                        // mode 4: FOV 70
-        .Expect(0x47BECB, "A1 9C C7 94 00 8B 15 98 C7 94 00")                     //   mouse y/x
-        .Expect(0x47BF08, "66 83 B8 F0 00 00 00 00")                              //   controls disabled
-        .Expect(0x47BF13, "D9 44 24 5C D9 E0 D8 0D 00 9E 68 00")                  //   -2.5 x
-        .Expect(0x47BF28, "D9 05 E8 9D 68 00 D8 4C 24 60")                        //   4 y
-        .Expect(0x47BF7F, "D9 83 B4 00 00 00 D8 0D 00 A0 68 00 DD D9")            //   FOV/80
-        .Expect(0x47BF8D, "D9 05 D8 CB 94 00 D8 4C 24 14 D8 C9 D9 5C 24 20")
-        .Expect(kMouseVRead, MouseVPattern())                                     // H, V
-        .Expect(0x47C0FA, "D9 83 BC 00 00 00 D8 44 24 20 D9 9B BC 00 00 00 D9 83 AC 00 00 00 D8 44 24 1C")
-        .Expect(0x47C175, "D8 1D 38 A0 68 00 DF E0 F6 C4 45 75 0C")               //   pitch up to 45 deg
+    ml.Expect(At(0x4AD738), "8D 44 24 0C 50 E8 <5FEEF0> 85 C0 59 0F 8C")          // UpdateMouse: the only mouse read
+        .Expect(At(0x4AD75E), "80 3D [A0FA55] 00")
+        .Expect(At(0x4AD76A), "80 3D [A0FA54] 00")                                //   invert y/x
+        .Expect(At(0x5FEEF0), "A1 [9B38FC] 57 83 78 1C 00")                       // _InputGetMouseState: device ps+0x1C
+        .Expect(At(0x600D00), "31 C9 31 C0 83 3D [6D49F4] 00")                    // IsForegroundApp
+        .Expect(At(0x47BD8B), "C7 83 B4 00 00 00 00 00 8C 42")                    // mode 4: FOV 70
+        .Expect(At(0x47BECB), "A1 [94C79C] 8B 15 [94C798]")                       //   mouse y/x
+        .Expect(At(0x47BF08), "66 83 B8 F0 00 00 00 00")                          //   controls disabled
+        .Expect(At(0x47BF13), "D9 44 24 5C D9 E0 D8 0D [689E00]")                 //   -2.5 x
+        .Expect(At(0x47BF28), "D9 05 [689DE8] D8 4C 24 60")                       //   4 y
+        .Expect(At(0x47BF7F), "D9 83 B4 00 00 00 D8 0D [68A000] DD D9")           //   FOV/80
+        .Expect(At(0x47BF8D), "D9 05 [94CBD8] D8 4C 24 14 D8 C9 D9 5C 24 20")
+        .Expect(At(kMouseVRead), MouseVPattern())                                 // H, V
+        .Expect(At(0x47C0FA), "D9 83 BC 00 00 00 D8 44 24 20 D9 9B BC 00 00 00 D9 83 AC 00 00 00 D8 44 24 1C")
+        .Expect(At(0x47C175), "D8 1D [68A038] DF E0 F6 C4 45 75 0C")              //   pitch up to 45 deg
         // sniper: mouse y/x
-        .Expect(0x479512, "A1 9C C7 94 00 8B 15 98 C7 94 00 89 44 24 38 89 54 24 34")
-        .Expect(0x47958E, "D8 0D F4 9D 68 00")                                    //   3 x
-        .Expect(0x4795B5, "D9 85 B4 00 00 00 D8 0D 00 A0 68 00 DD DC")            //   its own FOV/80
-        .Expect(0x479684, "D9 85 BC 00 00 00 D8 C5 D9 9D BC 00 00 00")
-        .Expect(0x4796FB, "D8 1D 3C 9E 68 00")                                    //   pitch up to 60 deg
-        .Expect(0x47AD64, "83 B8 A0 05 00 00 00 74 02 B3 01 D9 06")               // M16: attached gunner
-        .Expect(0x4819C9, "66 83 7D 0C 27 74 0A C7 85 B4 00 00 00 00 00 8C 42");  // runabout: FOV 70 unless mode 39
+        .Expect(At(0x479512), "A1 [94C79C] 8B 15 [94C798] 89 44 24 38 89 54 24 34")
+        .Expect(At(0x47958E), "D8 0D [689DF4]")                                       //   3 x
+        .Expect(At(0x4795B5), "D9 85 B4 00 00 00 D8 0D [68A000] DD DC")               //   its own FOV/80
+        .Expect(At(0x479684), "D9 85 BC 00 00 00 D8 C5 D9 9D BC 00 00 00")
+        .Expect(At(0x4796FB), "D8 1D [689E3C]")                                       //   pitch up to 60 deg
+        .Expect(At(0x47AD64), "83 B8 A0 05 00 00 00 74 02 B3 01 D9 06")               // M16: attached gunner
+        .Expect(At(0x4819C9), "66 83 7D 0C 27 74 0A C7 85 B4 00 00 00 00 00 8C 42");  // runabout: FOV 70 unless mode 39
     s_mouseLayout = ml.Ok();
 
     PatchGroup cp("fixed: wheel contact point layout");
-    cp.Expect(0x58A420, "05 E4 03 00 00 FF 74 24 68 50")
-        .Expect(0x58A474, "81 C1 E4 03 00 00 FF 70 04")  // CAutomobile::PreRender: colpoints +0x3E4
-        .Expect(0x58A85D, "83 44 24 08 28")              //   0x28 each
-        .Expect(0x60AA37, "8D B3 A8 03 00 00")
-        .Expect(0x60AA7D, "8D 83 80 03 00 00");          // CBike::PreRender: +0x330 + 3/2 x 0x28
+    cp.Expect(At(0x58A420), "05 E4 03 00 00 FF 74 24 68 50")
+        .Expect(At(0x58A474), "81 C1 E4 03 00 00 FF 70 04")  // CAutomobile::PreRender: colpoints +0x3E4
+        .Expect(At(0x58A85D), "83 44 24 08 28")              //   0x28 each
+        .Expect(At(0x60AA37), "8D B3 A8 03 00 00")
+        .Expect(At(0x60AA7D), "8D 83 80 03 00 00");          // CBike::PreRender: +0x330 + 3/2 x 0x28
     s_contactLayout = cp.Ok();
 
     PatchGroup lm("fixed: bike lean matrix layout");
-    lm.Expect(0x6098BB, "80 BB C0 02 00 00 00")                             // CBike::CalculateLeanMatrix: cached
-        .Expect(0x609918, "8D 43 04 8D 8B C4 02 00 00 50 E8 59 5E ED FF")  //   until +0x2C0 is 0, +0x2C4 = matrix
-        .Expect(0x6099FA, "C6 83 C0 02 00 00 01")
-        .Expect(0x4DF793, "83 7B 40 00")                                    // CMatrix attachment +0x40
-        .Expect(0x60E065, "C6 85 C0 02 00 00 00");                          // CBike::ProcessControl clears it
+    lm.Expect(At(0x6098BB), "80 BB C0 02 00 00 00")                         // CBike::CalculateLeanMatrix: cached
+        .Expect(At(0x609918), "8D 43 04 8D 8B C4 02 00 00 50 E8 <4DF780>")  //   until +0x2C0 is 0, +0x2C4 = matrix
+        .Expect(At(0x6099FA), "C6 83 C0 02 00 00 01")
+        .Expect(At(0x4DF793), "83 7B 40 00")                                // CMatrix attachment +0x40
+        .Expect(At(0x60E065), "C6 85 C0 02 00 00 00");                      // CBike::ProcessControl clears it
     s_leanLayout = lm.Ok();
 
     PatchGroup ms("fixed: move speed layout");
-    ms.Expect(0x4BC104, "83 C0 70 C3 83 C1 70");  // CPhysical::GetMoveSpeed +0x70
+    ms.Expect(At(0x4BC104), "83 C0 70 C3 83 C1 70");  // CPhysical::GetMoveSpeed +0x70
     if (!ms.Ok()) s_moveSpeedLayout = false;
 
     uint8_t* trampoline = fix::AllocCode(16);  // the first allocation: the hook code below fits in the same block
@@ -1713,33 +1718,34 @@ bool Install() {
         return false;
     }
     timer::Install();
-    memcpy(trampoline, (void*)game::Idle, 7);
-    mem::Jmp((uintptr_t)trampoline + 7, (void*)(game::Idle + 7));
+    memcpy(trampoline, (void*)At(game::Idle), 7);
+    mem::Jmp((uintptr_t)trampoline + 7, (void*)(At(game::Idle) + 7));
     OriginalIdle = (decltype(OriginalIdle))trampoline;
-    fix::Hook(0x563BBA, 7, "80 3D 3F FB A0 00 00", ParticleGate, "fixed: render particle gate");
-    fix::RetargetCall(0x4A5C70, kGameProcess, (void*)Process, "fixed: world ticks");
-    fix::RetargetCall(0x4A5D15, kConstruct, (void*)ConstructHook, "fixed: camera presentation");
-    fix::RetargetCall(0x4A5D1A, kPreRender, (void*)PreRenderHook, "fixed: entity presentation");
-    if (s_mouseLayout && !fix::RetargetCall(0x4AD73D, 0x5FEEF0, (void*)MouseStateHook, "fixed: mouse look input"))
+    fix::Hook(At(0x563BBA), 7, "80 3D [A0FB3F] 00", ParticleGate, "fixed: render particle gate");
+    fix::RetargetCall(At(0x4A5C70), At(kGameProcess), (void*)Process, "fixed: world ticks");
+    fix::RetargetCall(At(0x4A5D15), At(kConstruct), (void*)ConstructHook, "fixed: camera presentation");
+    fix::RetargetCall(At(0x4A5D1A), At(kPreRender), (void*)PreRenderHook, "fixed: entity presentation");
+    if (s_mouseLayout &&
+        !fix::RetargetCall(At(0x4AD73D), At(0x5FEEF0), (void*)MouseStateHook, "fixed: mouse look input"))
         s_mouseLayout = false;
     if (s_particleLayout &&
-        !(fix::Hook(0x564785, 5, "A3 34 F0 97 00", ParticleAdded, "fixed: particle serials") &&
-          fix::RetargetCall(0x4A6412, 0x5607B0, (void*)ParticleRenderHook, "fixed: particle presentation")))
+        !(fix::Hook(At(0x564785), 5, "A3 [97F034]", ParticleAdded, "fixed: particle serials") &&
+          fix::RetargetCall(At(0x4A6412), At(0x5607B0), (void*)ParticleRenderHook, "fixed: particle presentation")))
         s_particleLayout = false;
 
     // Water waves read the millisecond clock directly; give them a presentation clock while drawing.
     static const struct {
         uintptr_t at;
         const char* pattern;
-    } kWave[] = {{0x5BB9C7, "8B 35 34 3B 97 00"}, {0x5BBE07, "8B 15 34 3B 97 00"}, {0x5BD570, "8B 0D 34 3B 97 00"},
-                 {0x5BEF12, "8B 35 34 3B 97 00"}, {0x5C168B, "8B 15 34 3B 97 00"}, {0x5C2867, "8B 15 34 3B 97 00"},
-                 {0x5C2B54, "8B 0D 34 3B 97 00"}};
-    for (auto& w : kWave) fix::Redirect(w.at, w.pattern, 0x973B34, &s_waveMs, "fixed: wave clock");
-    s_waveMs = game::TimeInMs;
+    } kWave[] = {{0x5BB9C7, "8B 35 [973B34]"}, {0x5BBE07, "8B 15 [973B34]"}, {0x5BD570, "8B 0D [973B34]"},
+                 {0x5BEF12, "8B 35 [973B34]"}, {0x5C168B, "8B 15 [973B34]"}, {0x5C2867, "8B 15 [973B34]"},
+                 {0x5C2B54, "8B 0D [973B34]"}};
+    for (auto& w : kWave) fix::Redirect(At(w.at), w.pattern, At(0x973B34), &s_waveMs, "fixed: wave clock");
+    s_waveMs = game::TimeInMs();
     fx::Install(&s_waveMs);
 
     // Idle goes through IdleHook last, once everything it relies on is in place.
-    mem::Jmp(game::Idle, (void*)IdleHook, 7);
+    mem::Jmp(At(game::Idle), (void*)IdleHook, 7);
     Log("fixed: installed (30 Hz world; root poses, ped/cutscene skins, vehicle parts, particles, waves, world "
         "effects, target-relative follow camera and real-time mouse look)");
     return true;

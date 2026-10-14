@@ -76,7 +76,7 @@ enum Action : int16_t {
     MuteInBackground = 61,
 };
 
-static Entry* Entries(int screen) { return (Entry*)(game::MenuScreens + screen * 0xE2 + 10); }
+static Entry* Entries(int screen) { return (Entry*)(At(game::MenuScreens) + screen * 0xE2 + 10); }
 
 // Display Setup gains Show FPS above Restore Defaults; the page already uses 25-unit rows.
 static const Entry kDisplayTail[3] = {
@@ -118,7 +118,7 @@ static const Words kWords[5] = {
 };
 
 static const Words& Lang() {
-    int l = game::PrefsLanguage;
+    int l = game::PrefsLanguage();
     return kWords[l >= 0 && l < 5 ? l : 0];
 }
 
@@ -130,7 +130,7 @@ static void Widen(uint16_t* out, size_t n, const char* s) {
 
 static const uint16_t*(__thiscall* s_textGet)(void*, const char*);
 
-static const uint16_t* GameText(const char* key) { return s_textGet((void*)game::TheText, key); }
+static const uint16_t* GameText(const char* key) { return s_textGet((void*)At(game::TheText), key); }
 
 // CText::Get: the labels of the two new rows.
 static const uint16_t* __fastcall TextGet(void* text, void*, const char* key) {
@@ -182,22 +182,24 @@ static const uint16_t* ResolutionText() {
 
 // As in the original, a new screen mode needs the main menu: the device restart drops everything a loaded game has
 // in video memory. Borderless and windowed share one mode, so with a game loaded the row switches between those two.
-static bool ResolutionOpen() { return game::MenuGameNotLoaded || window::Mode() != 0; }
-static bool Allowed(const window::Choice& c) { return game::MenuGameNotLoaded || (window::Mode() != 0 && c.mode != 0); }
+static bool ResolutionOpen() { return game::MenuGameNotLoaded() || window::Mode() != 0; }
+static bool Allowed(const window::Choice& c) {
+    return game::MenuGameNotLoaded() || (window::Mode() != 0 && c.mode != 0);
+}
 
 // Enter on the row. True: the game's own handler (0x4998DF) restarts the device in the chosen mode.
 static bool ApplyResolution() {
     RefreshChoices();
     if (s_sel < 0 || s_sel == window::CurrentChoice()) return false;
     const window::Choice& c = s_choices[s_sel];
-    if (!game::MenuGameNotLoaded) {
+    if (!game::MenuGameNotLoaded()) {
         window::SwitchWindowed(c);
         return false;
     }
     window::PrepareChoice(c);
-    game::MenuDisplayVideoMode = c.vm;
-    game::MenuPrefsVideoMode = -1;  // differs, so the handler calls psSelectScreenVM
-    s_sel = -1;                     // rebuilt once the new device runs
+    game::MenuDisplayVideoMode() = c.vm;
+    game::MenuPrefsVideoMode() = -1;  // differs, so the handler calls psSelectScreenVM
+    s_sel = -1;                       // rebuilt once the new device runs
     return true;
 }
 
@@ -329,35 +331,35 @@ static void __fastcall OnOffAfterEnter(void* menu, void*) {
         s_resApplied = false;
         return;
     }
-    ((void(__fastcall*)(void*, void*))kProcessOnOff)(menu, nullptr);
+    ((void(__fastcall*)(void*, void*))At(kProcessOnOff))(menu, nullptr);
 }
 
 static void __cdecl OnDrawValue(fix::Regs* r, fix::Fpu*) {
-    int action = *(int16_t*)(r->esi + game::MenuScreens + 10);
+    int action = *(int16_t*)(r->esi + At(game::MenuScreens) + 10);
     const uint16_t* text = ValueText(action);
     if (!text) return;
     r->ebx = (uint32_t)(uintptr_t)text;
-    r->cont = action == ScreenRes && !ResolutionOpen() ? kDrawDimmed : kDrawText;
+    r->cont = action == ScreenRes && !ResolutionOpen() ? At(kDrawDimmed) : At(kDrawText);
 }
 
 static void __cdecl OnEnter(fix::Regs* r, fix::Fpu*) {
-    int action = *(int16_t*)(r->edi + game::MenuScreens + 10);
+    int action = *(int16_t*)(r->edi + At(game::MenuScreens) + 10);
     s_resApplied = false;
-    if (action == RestoreDefaults) RestoreOurDefaults(game::MenuCurrScreen);  // and the game's own defaults
+    if (action == RestoreDefaults) RestoreOurDefaults(game::MenuCurrScreen());  // and the game's own defaults
     else if (action == ScreenRes && s_res) {
         if (ApplyResolution()) s_resApplied = true;
-        else r->cont = kEnterDone;
-    } else if (Change(action, 1)) r->cont = kEnterDone;
+        else r->cont = At(kEnterDone);
+    } else if (Change(action, 1)) r->cont = At(kEnterDone);
 }
 
 static void __cdecl OnChange(fix::Regs* r, fix::Fpu*) {
-    int action = *(int16_t*)(r->edi * 2 + game::MenuScreens + 10);
+    int action = *(int16_t*)(r->edi * 2 + At(game::MenuScreens) + 10);
     int8_t dir = *((int8_t*)r->Stack() + 0x84);  // changeAmount
-    if (Change(action, dir)) r->cont = kChangeDone;
+    if (Change(action, dir)) r->cont = At(kChangeDone);
 }
 
 static void __cdecl OnResolutionHelp(fix::Regs* r, fix::Fpu*) {
-    if (ResolutionOpen()) r->cont = kHelpAdjust;
+    if (ResolutionOpen()) r->cont = At(kHelpAdjust);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -368,17 +370,17 @@ static bool Same(const Entry& e, const Entry& want) { return memcmp(&e, &want, s
 
 void Install(bool world) {
     PatchGroup g("menu: Display Setup and Audio Setup rows");
-    g.Expect(kDrawValue, "0F BF 86 4A 7B 6D 00 83 E8 07")
-        .Expect(kDrawText - 12, "B9 28 A2 94 00 E8 6E 5F 0E 00 89 C3 80 BC 24 5C 01 00 00 00")
-        .Expect(kDrawDimmed - 19, "80 7D 6C 00 59 8D 9C 24 94 00 00 00 59 0F 85 73 01 00 00 8B 85 08 01 00 00")
-        .Expect(kEnter, "0F BF 9F 4A 7B 6D 00 83 EB 02")
-        .Expect(kEnterDone - 7, "89 E9 E8 13 F0 FF FF 80 BC 24 80 00 00 00 00")
-        .Expect(kChange, "0F BF 04 7D 4A 7B 6D 00 83 E8 0F")
-        .Expect(kChangeDone - 22,
-                "8A 84 24 84 00 00 00 89 E9 50 E8 2F EA FF FF 89 E9 E8 EA EC FF FF 83 BD F8 00 00 00 1E")
+    g.Expect(At(kDrawValue), "0F BF 86 [6D7B4A] 83 E8 07")
+        .Expect(At(kDrawText) - 12, "B9 [94A228] E8 <584D60> 89 C3 80 BC 24 5C 01 00 00 00")
+        .Expect(At(kDrawDimmed) - 19, "80 7D 6C 00 59 8D 9C 24 94 00 00 00 59 0F 85 <49EDF4> 8B 85 08 01 00 00")
+        .Expect(At(kEnter), "0F BF 9F [6D7B4A] 83 EB 02")
+        .Expect(At(kEnterDone) - 7, "89 E9 E8 <498BED> 80 BC 24 80 00 00 00 00")
+        .Expect(At(kChange), "0F BF 04 7D [6D7B4A] 83 E8 0F")
+        .Expect(At(kChangeDone) - 22,
+                "8A 84 24 84 00 00 00 89 E9 50 E8 <49892B> 89 E9 E8 <498BED> 83 BD F8 00 00 00 1E")
         // Screen Resolution's Enter case: m_nPrefsVideoMode = m_nDisplayVideoMode, psSelectScreenVM
-        .Expect(0x4998DF, "8B 45 60 3B 45 5C 0F 84 E8 02 00 00 89 45 5C FF 75 5C E8 EA 7A 16 00")
-        .Expect(game::CText_Get, "53 55 89 CB 83 EC 40");
+        .Expect(At(0x4998DF), "8B 45 60 3B 45 5C 0F 84 <499BD3> 89 45 5C FF 75 5C E8 <6013E0>")
+        .Expect(At(game::CText_Get), "53 55 89 CB 83 EC 40");
     // The table as the game has it: Display Setup rows 2, 4, 8-11 and Audio Setup rows 0-11
     Entry* d = Entries(DisplaySetup);
     Entry* a = Entries(AudioSetup);
@@ -409,24 +411,25 @@ void Install(bool world) {
 
     uint8_t* tramp = fix::AllocCode(16);
     if (!tramp) return;
-    memcpy(tramp, (void*)game::CText_Get, 7);
+    memcpy(tramp, (void*)At(game::CText_Get), 7);
     tramp[7] = 0xE9;
-    *(int32_t*)(tramp + 8) = (int32_t)(game::CText_Get + 7 - (uintptr_t)(tramp + 12));
+    *(int32_t*)(tramp + 8) = (int32_t)(At(game::CText_Get) + 7 - (uintptr_t)(tramp + 12));
     s_textGet = (decltype(s_textGet))tramp;
 
     s_limiter = world;  // without the fixed world the game keeps its own 30 fps limiter
     s_wide = hud::WidescreenReady();
     s_res = true;
     s_fps = hud::FpsReady();
-    if (!fix::Hook(kDrawValue, 7, "0F BF 86 4A 7B 6D 00", OnDrawValue, "menu: row values") ||
-        !fix::Hook(kEnter, 7, "0F BF 9F 4A 7B 6D 00", OnEnter, "menu: Enter") ||
-        !fix::Hook(kChange, 8, "0F BF 04 7D 4A 7B 6D 00", OnChange, "menu: left/right"))
+    if (!fix::Hook(At(kDrawValue), 7, "0F BF 86 [6D7B4A]", OnDrawValue, "menu: row values") ||
+        !fix::Hook(At(kEnter), 7, "0F BF 9F [6D7B4A]", OnEnter, "menu: Enter") ||
+        !fix::Hook(At(kChange), 8, "0F BF 04 7D [6D7B4A]", OnChange, "menu: left/right"))
         return;
-    fix::RetargetCall(kOnOffCall, kProcessOnOff, (void*)OnOffAfterEnter, "menu: Map Legend after a resolution change");
+    fix::RetargetCall(At(kOnOffCall), At(kProcessOnOff), (void*)OnOffAfterEnter,
+                      "menu: Map Legend after a resolution change");
     // TheText.Get("FEH_NA") ... jmp; kHelpAdjust: TheText.Get(left/right hint)
-    fix::Hook(kHelpNotAvailable, 5, "B9 28 A2 94 00 68 8C B3 68 00 E8 7E 55 0F 00 EB 0F B9 28 A2 94 00 68 94 B3 68 00",
+    fix::Hook(At(kHelpNotAvailable), 5, "B9 [94A228] 68 [68B38C] E8 <584D60> EB 0F B9 [94A228] 68 [68B394]",
               OnResolutionHelp, "menu: Screen Resolution hint");
-    mem::Jmp(game::CText_Get, (void*)&TextGet, 7);
+    mem::Jmp(At(game::CText_Get), (void*)&TextGet, 7);
     if (s_fps) mem::Write((uintptr_t)&d[9], kDisplayTail, sizeof kDisplayTail);
     mem::Write((uintptr_t)a, kAudio, sizeof kAudio);
     Log("[menu] rows in place (frame limiter %d, widescreen %d, FPS %d)", s_limiter, s_wide, s_fps);

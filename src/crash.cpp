@@ -52,6 +52,14 @@ static const char* ModName(uintptr_t a, uintptr_t* base) {
     return n ? n + 1 : buf;
 }
 
+// In the game executable's code section (the first one; its range differs between versions)
+static bool InGameCode(uintptr_t a) {
+    uintptr_t base = (uintptr_t)GetModuleHandleA(nullptr);
+    auto nt = (const IMAGE_NT_HEADERS*)(base + ((const IMAGE_DOS_HEADER*)base)->e_lfanew);
+    const IMAGE_SECTION_HEADER* text = IMAGE_FIRST_SECTION(nt);
+    return a >= base + text->VirtualAddress && a < base + text->VirtualAddress + text->Misc.VirtualSize;
+}
+
 static bool IsCode(uintptr_t a) {
     MEMORY_BASIC_INFORMATION mbi;
     if (!VirtualQuery((void*)a, &mbi, sizeof mbi)) return false;
@@ -66,7 +74,7 @@ static LONG CALLBACK Handler(EXCEPTION_POINTERS* ep) {
     DWORD code = ep->ExceptionRecord->ExceptionCode;
     uintptr_t eip = ep->ContextRecord->Eip;
     bool fatal = code == EXCEPTION_STACK_OVERFLOW ||
-                 (code == EXCEPTION_ACCESS_VIOLATION && (eip >= 0x401000 && eip < 0x700000));
+                 (code == EXCEPTION_ACCESS_VIOLATION && InGameCode(eip));
     if (!fatal || s_done) return EXCEPTION_CONTINUE_SEARCH;
     s_done = true;
     LogToFile();

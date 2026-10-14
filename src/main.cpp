@@ -25,6 +25,9 @@
 //
 //   With both files installed, the first copy loaded owns the game and the second one stays inert.
 //
+//   Versions: the executable is identified first (version.h). An executable that is no known version is left alone:
+//   no hook and no patch, only a log line that names it.
+//
 //   Install order: the fixed 30 Hz world first. If any of its byte checks fail, the game keeps its own 30 fps timing
 //   and only the display, window and HUD features are applied.
 //
@@ -59,13 +62,11 @@ static HMODULE s_self, s_realDinput;
 static bool s_active, s_installed;
 static HRESULT(WINAPI* s_DirectInput8Create)(HINSTANCE, DWORD, REFIID, LPVOID*, IUnknown*);
 
-static bool CodeDecrypted() { return mem::Match(game::CTimer_Update, "55 A1 34 3B 97 00 89 E5"); }
-
 static void InstallAll(const char* from) {
     if (!s_active || s_installed) return;
-    if (!CodeDecrypted()) return;
+    if (!ver::Detect()) return;  // the code is still encrypted
     s_installed = true;
-    Log("code decrypted, installing (trigger: %s)", from);
+    Log("gta-vc.exe %s, installing (trigger: %s)", ver::Current()->name, from);
     // The fixed 30 Hz world replaces CTimer::Update and the frame loop; if its byte checks fail the game
     // keeps its own timing (30 fps limiter) and only the display/window/HUD features are applied.
     bool world = fixed::Install();
@@ -137,6 +138,19 @@ static bool IsViceCity() {
     return _stricmp(n, "gta-vc.exe") == 0;
 }
 
+// Size, link time and entry point name the executable in a report.
+static void LogUnsupported() {
+    char p[MAX_PATH];
+    GetModuleFileNameA(nullptr, p, MAX_PATH);
+    WIN32_FILE_ATTRIBUTE_DATA fa{};
+    GetFileAttributesExA(p, GetFileExInfoStandard, &fa);
+    uintptr_t base = (uintptr_t)GetModuleHandleA(nullptr);
+    auto nt = (const IMAGE_NT_HEADERS*)(base + ((const IMAGE_DOS_HEADER*)base)->e_lfanew);
+    Log("unsupported executable (%lu bytes, timestamp %08lX, entry %08lX): VCUnlock does nothing", fa.nFileSizeLow,
+        nt->FileHeader.TimeDateStamp, nt->OptionalHeader.AddressOfEntryPoint);
+    LogToFile();
+}
+
 // dinput8.dll and VCUnlock.asi both installed: only the first copy loaded may patch the game.
 static bool FirstCopy() {
     char name[64];
@@ -150,14 +164,18 @@ BOOL WINAPI DllMain(HMODULE mod, DWORD reason, LPVOID) {
         s_self = mod;
         DisableThreadLibraryCalls(mod);
         if (!IsViceCity() || !FirstCopy()) return TRUE;
-        s_active = true;
         LoadConfig(mod);
-        crash::Install();
         char file[MAX_PATH];
         GetModuleFileNameA(mod, file, MAX_PATH);
         const char* name = strrchr(file, '\\');
         Log("VCUnlock loaded as %s (window mode %d, vsync %d, fps limit %d)", name ? name + 1 : file, g_cfg.windowMode,
             g_cfg.vsync, g_cfg.fpsLimit);
+        if (!ver::Known()) {
+            LogUnsupported();
+            return TRUE;
+        }
+        s_active = true;
+        crash::Install();
         HMODULE exe = GetModuleHandleA(nullptr);
         s_GetStartupInfoA = (decltype(s_GetStartupInfoA))mem::HookImport(exe, "KERNEL32.dll", "GetStartupInfoA",
                                                                          (void*)&Hk_GetStartupInfoA);

@@ -81,7 +81,7 @@ static void Unclip() {
 static void UpdateClip() {
     bool want = s_hwnd && s_active && !s_sizing && !IsIconic(s_hwnd) && GetForegroundWindow() == s_hwnd;
     // windowed: free the cursor in menus so the title bar and other windows stay reachable
-    if (want && s_mode == Windowed && (game::MenuActive || game::GameState != 9)) want = false;
+    if (want && s_mode == Windowed && (game::MenuActive() || game::GameState() != 9)) want = false;
     if (!want) {
         Unclip();
         return;
@@ -118,11 +118,11 @@ int BackgroundFps() {
 static void OnFocusLost() {
     s_active = false;
     Unclip();
-    if (g_cfg.pauseOnFocusLoss && game::GameState == 9 && !game::MenuGameNotLoaded && !game::MenuActive)
-        game::MenuStartUpRequested = 1;  // same request the game makes in CGame::InitAfterFocusLoss
+    if (g_cfg.pauseOnFocusLoss && game::GameState() == 9 && !game::MenuGameNotLoaded() && !game::MenuActive())
+        game::MenuStartUpRequested() = 1;  // same request the game makes in CGame::InitAfterFocusLoss
     // exclusive mode: RW's device-lost path already releases/reacquires the audio device
     if (g_cfg.muteOnFocusLoss && s_mode != Exclusive && !s_muted) {
-        ((void(__thiscall*)(void*))game::DMAudio_ReleaseDigitalHandle)((void*)game::DMAudio);
+        ((void(__thiscall*)(void*))At(game::DMAudio_ReleaseDigitalHandle))((void*)At(game::DMAudio));
         s_muted = true;
     }
 }
@@ -130,7 +130,7 @@ static void OnFocusLost() {
 static void OnFocusGained() {
     s_active = true;
     if (s_muted) {
-        ((void(__thiscall*)(void*))game::DMAudio_ReacquireDigitalHandle)((void*)game::DMAudio);
+        ((void(__thiscall*)(void*))At(game::DMAudio_ReacquireDigitalHandle))((void*)At(game::DMAudio));
         s_muted = false;
     }
     UpdateClip();
@@ -162,9 +162,9 @@ static LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             // original: CGame::InitAfterFocusLoss (0x4A4EA0) re-selects the 3D audio provider and opens the pause menu
             // when focus comes back; with PauseOnFocusLoss=0 the game keeps running, so drop that menu request
             if (!g_cfg.pauseOnFocusLoss) {
-                uint8_t before = game::MenuStartUpRequested;
+                uint8_t before = game::MenuStartUpRequested();
                 LRESULT r = CallWindowProcA(s_origProc, h, msg, wp, lp);
-                game::MenuStartUpRequested = before;
+                game::MenuStartUpRequested() = before;
                 return r;
             }
             break;
@@ -196,8 +196,8 @@ static LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
             LRESULT r = CallWindowProcA(s_origProc, h, msg, wp, lp);
             int w = LOWORD(lp), hh = HIWORD(lp);
             if (s_mode != Exclusive && w > 0 && hh > 0 && wp != SIZE_MINIMIZED) {
-                game::RsGlobalMaxWidth = w;
-                game::RsGlobalMaxHeight = hh;  // keeps menu mouse centring right
+                game::RsGlobalMaxWidth() = w;
+                game::RsGlobalMaxHeight() = hh;  // keeps menu mouse centring right
                 if (s_mode == Windowed && wp == SIZE_RESTORED) {
                     s_clientW = w;
                     s_clientH = hh;
@@ -276,7 +276,7 @@ static void WindowedSize(int& w, int& h) {
 }
 
 static void __cdecl ApplyWindowMode() {
-    HWND hwnd = *(HWND*)game::RsGlobalPs;
+    HWND hwnd = *(HWND*)game::RsGlobalPs();
     // HWND_NOTOPMOST: a released exclusive fullscreen device can leave the window topmost
     if (s_mode == Borderless) {
         RECT m = PrimaryMonitor(false);
@@ -312,17 +312,15 @@ static void __cdecl ApplyWindowMode() {
 // ---------------------------------------------------------------------------------------------------------------------
 
 using RwVideoMode = game::RwVideoMode;
-static int(__cdecl* const RwGetNumSubSystems)() = (int(__cdecl*)())game::RwEngineGetNumSubSystems;
-static void*(__cdecl* const RwGetSubSystemInfo)(void*, int) =
-    (void*(__cdecl*)(void*, int))game::RwEngineGetSubSystemInfo;
-static int(__cdecl* const RwGetCurrentSubSystem)() = (int(__cdecl*)())game::RwEngineGetCurrentSubSystem;
-static int(__cdecl* const RwSetSubSystem)(int) = (int(__cdecl*)(int))game::RwEngineSetSubSystem;
-static int(__cdecl* const RwGetNumVideoModes)() = (int(__cdecl*)())game::RwEngineGetNumVideoModes;
-static RwVideoMode*(__cdecl* const RwGetVideoModeInfo)(RwVideoMode*, int) =
-    (RwVideoMode*(__cdecl*)(RwVideoMode*, int))game::RwEngineGetVideoModeInfo;
-static int(__cdecl* const RwSetVideoMode)(int) = (int(__cdecl*)(int))game::RwEngineSetVideoMode;
-static int(__cdecl* const RwSetRefreshRate)(int) = (int(__cdecl*)(int))game::RwD3D8EngineSetRefreshRate;
-static char**(__cdecl* const GetVideoModeList)() = (char**(__cdecl*)())game::psGetVideoModeList;
+constexpr GameFn<int(__cdecl*)()> RwGetNumSubSystems{game::RwEngineGetNumSubSystems};
+constexpr GameFn<void*(__cdecl*)(void*, int)> RwGetSubSystemInfo{game::RwEngineGetSubSystemInfo};
+constexpr GameFn<int(__cdecl*)()> RwGetCurrentSubSystem{game::RwEngineGetCurrentSubSystem};
+constexpr GameFn<int(__cdecl*)(int)> RwSetSubSystem{game::RwEngineSetSubSystem};
+constexpr GameFn<int(__cdecl*)()> RwGetNumVideoModes{game::RwEngineGetNumVideoModes};
+constexpr GameFn<RwVideoMode*(__cdecl*)(RwVideoMode*, int)> RwGetVideoModeInfo{game::RwEngineGetVideoModeInfo};
+constexpr GameFn<int(__cdecl*)(int)> RwSetVideoMode{game::RwEngineSetVideoMode};
+constexpr GameFn<int(__cdecl*)(int)> RwSetRefreshRate{game::RwD3D8EngineSetRefreshRate};
+constexpr GameFn<char**(__cdecl*)()> GetVideoModeList{game::psGetVideoModeList};
 
 static int FindExclusive(int w, int h) {
     int n = RwGetNumVideoModes(), best = -1, bestArea = 0;
@@ -340,16 +338,17 @@ static int FindExclusive(int w, int h) {
 }
 
 static int __cdecl SelectDevice() {
-    if (!game::UseDefaultVM) {
+    if (!game::UseDefaultVM()) {
         int n = RwGetNumSubSystems();
         if (!n) return 0;
-        game::GnumSubSystems = n > 16 ? 16 : n;
-        for (int i = 0; i < game::GnumSubSystems; ++i) RwGetSubSystemInfo((void*)(game::GsubSysInfo + i * 0x50), i);
-        game::GcurSel = RwGetCurrentSubSystem();
+        game::GnumSubSystems() = n > 16 ? 16 : n;
+        for (int i = 0; i < game::GnumSubSystems(); ++i)
+            RwGetSubSystemInfo((void*)(At(game::GsubSysInfo) + i * 0x50), i);
+        game::GcurSel() = RwGetCurrentSubSystem();
     }
-    if (!RwSetSubSystem(game::GcurSel)) return 0;
+    if (!RwSetSubSystem(game::GcurSel())) return 0;
 
-    if (!game::UseDefaultVM) {
+    if (!game::UseDefaultVM()) {
         int idx = -1;
         if (s_mode != Exclusive) {
             RwVideoMode vm;
@@ -358,7 +357,7 @@ static int __cdecl SelectDevice() {
             else {
                 Log("no windowed video mode available, falling back to exclusive fullscreen");
                 s_mode = Exclusive;
-                SetExclusiveStyle(*(HWND*)game::RsGlobalPs);
+                SetExclusiveStyle(*(HWND*)game::RsGlobalPs());
             }
         }
         if (s_mode == Exclusive) {
@@ -373,15 +372,15 @@ static int __cdecl SelectDevice() {
                 return 0;
             }
         }
-        game::GcurSelVM = idx;
+        game::GcurSelVM() = idx;
     }
 
     RwVideoMode vm;
-    RwGetVideoModeInfo(&vm, game::GcurSelVM);
-    if (game::UseDefaultVM) {
+    RwGetVideoModeInfo(&vm, game::GcurSelVM());
+    if (game::UseDefaultVM()) {
         // Screen Resolution changed in the menu (psSelectScreenVM): the old device is gone and the new one is created
         // after this returns, so the window takes the style and size of the new mode now
-        HWND hwnd = *(HWND*)game::RsGlobalPs;
+        HWND hwnd = *(HWND*)game::RsGlobalPs();
         if (vm.flags & 1) {
             s_mode = Exclusive;
             SetExclusiveStyle(hwnd);
@@ -391,30 +390,30 @@ static int __cdecl SelectDevice() {
             ApplyWindowMode();
         }
     }
-    game::MenuCurrOption = 0;
-    if (!RwSetVideoMode(game::GcurSelVM)) return 0;
-    uint8_t* ps = (uint8_t*)game::RsGlobalPs;
+    game::MenuCurrOption() = 0;
+    if (!RwSetVideoMode(game::GcurSelVM())) return 0;
+    uint8_t* ps = (uint8_t*)game::RsGlobalPs();
     if (vm.flags & 1) {
         if (g_cfg.refreshRate > 0) RwSetRefreshRate(g_cfg.refreshRate);  // otherwise RW uses the mode's max refresh
-        game::RsGlobalMaxWidth = game::RsGlobalWidth = vm.width;
-        game::RsGlobalMaxHeight = game::RsGlobalHeight = vm.height;
+        game::RsGlobalMaxWidth() = game::RsGlobalWidth() = vm.width;
+        game::RsGlobalMaxHeight() = game::RsGlobalHeight() = vm.height;
         *(int32_t*)(ps + 8) = 1;
     } else {
-        game::RsGlobalMaxWidth = game::RsGlobalWidth = s_clientW;
-        game::RsGlobalMaxHeight = game::RsGlobalHeight = s_clientH;
+        game::RsGlobalMaxWidth() = game::RsGlobalWidth() = s_clientW;
+        game::RsGlobalMaxHeight() = game::RsGlobalHeight() = s_clientH;
         *(int32_t*)(ps + 8) = 0;
         // the menu's resolution list has no entry for the windowed mode (index 0): give it a label,
         // otherwise drawing the Display Setup page dereferences NULL
         char** list = GetVideoModeList();
         if (list && !list[0]) {
-            auto calloc_ = *(void*(__cdecl**)(size_t, size_t))((uint8_t*)game::RwEngineInstance + 0x13C);
+            auto calloc_ = *(void*(__cdecl**)(size_t, size_t))((uint8_t*)game::RwEngineInstance() + 0x13C);
             if (char* s = (char*)calloc_(100, 1)) {
                 sprintf_s(s, 100, "%d X %d %s", s_clientW, s_clientH, s_mode == Borderless ? "BORDERLESS" : "WINDOWED");
                 list[0] = s;
             }
         }
     }
-    Log("video mode %d: %dx%dx%d %s", game::GcurSelVM, vm.width, vm.height, vm.depth,
+    Log("video mode %d: %dx%dx%d %s", game::GcurSelVM(), vm.width, vm.height, vm.depth,
         (vm.flags & 1) ? "exclusive" : "windowed");
     return 1;
 }
@@ -468,7 +467,7 @@ int CurrentChoice() {
         const Choice& c = s_choices[i];
         if (c.mode != s_mode) continue;
         if (c.mode != Exclusive) return i;
-        if (c.vm != game::GcurSelVM) continue;
+        if (c.vm != game::GcurSelVM()) continue;
         if (c.hz == render::g_refresh) return i;
         if (any < 0) any = i;
     }
@@ -533,7 +532,7 @@ static void SetDpiAware() {
 // windowed get focus back far more often than exclusive fullscreen. An empty name is drawn instead, and the page
 // switches the index to the provider in use while its row is not selected.
 static const char* __fastcall Get3DProviderName(void* dmAudio, void*, int index) {
-    auto get = (const char*(__thiscall*)(void*, int))game::DMAudio_Get3DProviderName;
+    auto get = (const char*(__thiscall*)(void*, int))At(game::DMAudio_Get3DProviderName);
     const char* name = get(dmAudio, index);
     return name ? name : "";
 }
@@ -553,8 +552,8 @@ void InstallEarly(HMODULE exe) {
 
 // WinMain state 3 starts the intro movie without checking bNoMovies (the logo movie path does check).
 static void __cdecl PlayIntroMovie(int cmdShow, const char* file) {
-    if (*(uint32_t*)0x973C04) return;
-    ((void(__cdecl*)(int, const char*))0x600430)(cmdShow, file);
+    if (*(uint32_t*)At(0x973C04)) return;
+    ((void(__cdecl*)(int, const char*))At(0x600430))(cmdShow, file);
 }
 
 void Install() {
@@ -564,42 +563,42 @@ void Install() {
     if (skipMovies) {
         PatchGroup g("window: skip intro movies");
         // WM_ACTIVATEAPP sets bNoMovies = 1; WinMain state 3 calls PlayMovieInWindow(intro) unconditionally
-        g.Expect(0x6011AC, "C7 05 04 3C 97 00 01 00 00 00 6A 00 6A 00 E8 71 9D EA FF");
-        g.Expect(0x5FFDD9, "E8 52 06 00 00 59 59");
+        g.Expect(At(0x6011AC), "C7 05 [973C04] 01 00 00 00 6A 00 6A 00 E8 <4AAF30>");
+        g.Expect(At(0x5FFDD9), "E8 <600430> 59 59");
         if (g.Ok()) {
-            *(uint32_t*)0x973C04 = 1;
-            mem::Call(0x5FFDD9, (void*)&PlayIntroMovie);
+            *(uint32_t*)At(0x973C04) = 1;
+            mem::Call(At(0x5FFDD9), (void*)&PlayIntroMovie);
         }
     }
     {  // video mode selection + window style per mode
         PatchGroup g("window: video mode / window style");
-        g.Expect(game::psSelectDevice, "53 56 55 31 DB 83 EC 10 83 3D F4 2E 78 00 00");
-        g.Expect(game::WinMain_RestyleWindow,
-                 "8B 15 FC 38 9B 00 8B 02 68 00 00 00 80 6A F0 50 FF 15 08 15 6F 00 "
-                 "8B 0D FC 38 9B 00 8B 01 6A 27 6A 00 6A 00 6A 00 6A 00 6A 00 50 FF 15 0C 15 6F 00");
+        g.Expect(At(game::psSelectDevice), "53 56 55 31 DB 83 EC 10 83 3D [782EF4] 00");
+        g.Expect(At(game::WinMain_RestyleWindow),
+                 "8B 15 [9B38FC] 8B 02 68 00 00 00 80 6A F0 50 FF 15 [6F1508] "
+                 "8B 0D [9B38FC] 8B 01 6A 27 6A 00 6A 00 6A 00 6A 00 6A 00 50 FF 15 [6F150C]");
         if (g.Ok()) {
-            mem::Jmp(game::psSelectDevice, (void*)&SelectDevice);
-            mem::Call(game::WinMain_RestyleWindow, (void*)&ApplyWindowMode);
+            mem::Jmp(At(game::psSelectDevice), (void*)&SelectDevice);
+            mem::Call(At(game::WinMain_RestyleWindow), (void*)&ApplyWindowMode);
             uint8_t jmp[2] = {0xEB, 0x2A};  // -> 0x5FFA01 (RsEventHandler(rsRWINITIALISE))
-            mem::Write(game::WinMain_RestyleWindow + 5, jmp, 2);
+            mem::Write(At(game::WinMain_RestyleWindow) + 5, jmp, 2);
         } else s_mode = Exclusive;
     }
     {  // DirectInput mouse always non-exclusive (menu close re-created it exclusive: dead mouse / no alt-tab)
         uint8_t b[3] = {0x30, 0xC0, 0xC3};  // return false; SilentPatch makes the same change
-        if (mem::Match(game::psInputMouseNeedsExclusive, "30 C0 C3")) {
+        if (mem::Match(At(game::psInputMouseNeedsExclusive), "30 C0 C3")) {
             Log("[window: non-exclusive mouse] already in place");
         } else {
             PatchGroup g("window: non-exclusive mouse");
-            g.Expect(game::psInputMouseNeedsExclusive, "8B 0D EC 2E 78 00 83 EC 10");
-            if (g.Ok()) mem::Write(game::psInputMouseNeedsExclusive, b, 3);
+            g.Expect(At(game::psInputMouseNeedsExclusive), "8B 0D [782EEC] 83 EC 10");
+            if (g.Ok()) mem::Write(At(game::psInputMouseNeedsExclusive), b, 3);
         }
     }
     {  // Audio Setup provider row: 0xFD and 0xFF have their own text, any other index goes to Get3DProviderName
         PatchGroup g("window: audio setup provider name");
-        g.Expect(0x49ECF0, "8A 45 26 3C FD 0F 84 D3 00 00 00 3C FF 0F 84 8F 00 00 00 "
-                           "B9 94 FB A0 00 50 E8 A2 AB 15 00 8D B4 24 90 00 00 00 56 50 E8 D4 36 0B 00");
-        g.Expect(game::DMAudio_Get3DProviderName, "83 EC 08 8B 44 24 0C 50 89 4C 24 08 B9 20 C7 78 00");
-        if (g.Ok()) mem::Call(0x49ED09, (void*)&Get3DProviderName);
+        g.Expect(At(0x49ECF0), "8A 45 26 3C FD 0F 84 <49EDCE> 3C FF 0F 84 <49ED92> "
+                           "B9 [A0FB94] 50 E8 <5F98B0> 8D B4 24 90 00 00 00 56 50 E8 <5523F0>");
+        g.Expect(At(game::DMAudio_Get3DProviderName), "83 EC 08 8B 44 24 0C 50 89 4C 24 08 B9 [78C720]");
+        if (g.Ok()) mem::Call(At(0x49ED09), (void*)&Get3DProviderName);
     }
 }
 

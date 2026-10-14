@@ -283,6 +283,22 @@ static int hexv(char c) {
     return -1;
 }
 
+// "[973B34]" / "<4D0CB0>": a Steam address, 6 hex digits, through At(); 0 if the pattern is malformed or this version
+// has no such address
+static uintptr_t PlaceholderAddr(const char*& p) {
+    char close = p[0] == '[' ? ']' : '>';
+    uintptr_t steam = 0;
+    ++p;
+    for (; *p && *p != close; ++p) {
+        int v = hexv(*p);
+        if (v < 0) return 0;
+        steam = steam * 16 + v;
+    }
+    if (*p != close) return 0;
+    ++p;
+    return At(steam);
+}
+
 bool Match(uintptr_t addr, const char* p) {
     const uint8_t* m = (const uint8_t*)addr;
     __try {
@@ -294,6 +310,15 @@ bool Match(uintptr_t addr, const char* p) {
                 ++m;
                 continue;
             }
+            if (p[0] == '[' || p[0] == '<') {
+                bool rel = p[0] == '<';
+                uintptr_t a = PlaceholderAddr(p);
+                if (!a) return false;
+                if (rel) a -= uintptr_t(m) + 4;
+                if (*(const uint32_t*)m != (uint32_t)a) return false;
+                m += 4;
+                continue;
+            }
             int hi = hexv(p[0]), lo = hexv(p[1]);
             if (hi < 0 || lo < 0) return false;
             if (*m != uint8_t(hi * 16 + lo)) return false;
@@ -302,6 +327,17 @@ bool Match(uintptr_t addr, const char* p) {
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) { return false; }
     return true;
+}
+
+size_t PatternSize(const char* p) {
+    size_t n = 0;
+    while (*p) {
+        while (*p == ' ') ++p;
+        if (!*p) break;
+        n += *p == '[' || *p == '<' ? 4 : 1;
+        while (*p && *p != ' ') ++p;
+    }
+    return n;
 }
 
 void Write(uintptr_t addr, const void* data, size_t n) {

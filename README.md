@@ -10,12 +10,12 @@ The game still runs at 30 Hz underneath, so nothing breaks.
 
 ### [Download VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip)
 
-<sub>Steam version · Windows 10 and 11 · one DLL, no game files changed</sub>
+<sub>Steam and retail 1.0 · Windows 10 and 11 · one DLL, no game files changed</sub>
 
 </div>
 
 > [!NOTE]
-> VCUnlock is an unofficial fan project. It needs your own copy of GTA Vice City from Steam and contains no game code or files. It is not affiliated with Rockstar Games or Take-Two Interactive.
+> VCUnlock is an unofficial fan project. It needs your own copy of GTA Vice City, from Steam or the retail 1.0 release, and contains no game code or files. It is not affiliated with Rockstar Games or Take-Two Interactive.
 
 <!-- video -->
 
@@ -169,13 +169,14 @@ Also checked:
 - Draw distance stress test with a sniper zoom: 480 of 16,384 list entries and 75 MB of streaming memory used.
 - 7 of 7 alt-tabs in exclusive fullscreen worked.
 - The 30 Hz world and the draw distance code run against a copy of the Steam executable in offline tests.
+- On retail 1.0 every change goes in, the same as on Steam, and the world keeps 30 updates a second.
 - With SilentPatch (Build 12.1 and its DDraw component) and Ultimate ASI Loader 9.7.4, in either load order, every VCUnlock change went in and the world kept 30 updates a second.
 
 ## Install
 
-You need GTA Vice City from Steam. The retail CD, Rockstar Games Launcher and Definitive Edition versions are not supported.
+You need GTA Vice City from Steam, or the retail CD version 1.0. Other versions, such as retail 1.1, the Japanese release, the Rockstar Games Launcher and the Definitive Edition, are not supported. VCUnlock leaves them untouched.
 
-To open the game folder, right-click the game in Steam and choose **Manage** → **Browse local files**. Then follow the way that fits your folder.
+To open the game folder on Steam, right-click the game and choose **Manage** → **Browse local files**. The retail game is in the folder you installed it to. Then follow the way that fits your folder.
 
 ### Without an ASI loader
 
@@ -183,7 +184,7 @@ Use this if you don't have an ASI loader installed.
 
 1. Download [VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip).
 2. Extract `dinput8.dll` into the game folder, next to `gta-vc.exe`.
-3. Start the game from Steam.
+3. Start the game.
 
 To uninstall, delete `dinput8.dll`.
 
@@ -193,7 +194,7 @@ Use this if you already have an ASI loader installed, for example for SilentPatc
 
 1. Download [VCUnlock-ASI.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock-ASI.zip).
 2. Extract `VCUnlock.asi` into the folder that holds your other `.asi` files. That is usually the game folder, or its `scripts` or `plugins` folder.
-3. Start the game from Steam.
+3. Start the game.
 
 To uninstall, delete `VCUnlock.asi`.
 
@@ -242,7 +243,7 @@ Settings are saved in `Documents\GTA Vice City User Files\VCUnlock.ini`, which h
 
 ## Troubleshooting
 
-**Nothing changed in the game.** Make sure `dinput8.dll` sits next to `gta-vc.exe`, or `VCUnlock.asi` next to your other `.asi` files. Set `Log=1` and check `VCUnlock.log`. VCUnlock checks the game's code before every change and skips anything that doesn't match the Steam version.
+**Nothing changed in the game.** Make sure `dinput8.dll` sits next to `gta-vc.exe`, or `VCUnlock.asi` next to your other `.asi` files. Set `Log=1` and check `VCUnlock.log`. VCUnlock checks the game's code before every change and skips anything that doesn't match. If the log says "unsupported executable", your game version is not one VCUnlock knows.
 
 **Another mod uses `dinput8.dll`.** That is usually an ASI loader: use `VCUnlock.asi` instead. Remove other frame rate, widescreen and window mods first.
 

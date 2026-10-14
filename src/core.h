@@ -38,6 +38,7 @@
 #include <windows.h>
 #include <cstdint>
 #include <cstddef>
+#include "version.h"
 
 // ---------------------------------------------------------------------------------------------------------------------
 //  LOG
@@ -82,8 +83,10 @@ extern char g_userDir[MAX_PATH];  // the game's user files folder (gta_vc.set), 
 // ---------------------------------------------------------------------------------------------------------------------
 
 namespace mem {
-// pattern: "55 A1 ?? 3B" (hex bytes, ?? = wildcard)
+// pattern: "55 A1 ?? 3B" (hex bytes, ?? = wildcard); "[973B34]" is the 4-byte address At(0x973B34) and "<4D0CB0>" a
+// rel32 field that reaches At(0x4D0CB0) (see version.h)
 bool Match(uintptr_t addr, const char* pattern);
+size_t PatternSize(const char* pattern);  // bytes the pattern covers
 void Write(uintptr_t addr, const void* data, size_t n);
 template <class T> inline void Put(uintptr_t addr, T v) { Write(addr, &v, sizeof(T)); }
 void Nop(uintptr_t addr, size_t n);

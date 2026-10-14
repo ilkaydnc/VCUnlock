@@ -64,7 +64,7 @@ static double Widening() { return s_fov && g_cfg.widescreen ? s_kx : 1.0; }
 // ---------------------------------------------------------------------------------------------------------------------
 
 static void UpdateFov() {
-    float fov = game::MsFov;
+    float fov = game::MsFov();
     double kx = Widening();
     g_fovHorPlus = kx == 1.0 ? fov
                              : (float)(2.0 * atan(tan(fov * 0.5 * (3.14159265358979 / 180.0)) * kx) *
@@ -77,7 +77,7 @@ static void Recompute() {
     g_hudScaleX = hud ? (float)(s_h / (480.0 * s_w)) : 1.0f / 640.0f;
     double kx = Widening();
     g_sprite70w = (float)(70.0 / kx);
-    g_arHorPlus = (float)(game::MsAspectRatio * kx);
+    g_arHorPlus = (float)(game::MsAspectRatio() * kx);
     UpdateFov();
 }
 
@@ -87,7 +87,7 @@ static void SetSize(int w, int h) {
     s_h = h;
     s_kx = (3.0 * w) / (4.0 * h);
     Recompute();
-    Log("hud: %dx%d, kx %.4f, hudScaleX %.7f, fov %.2f -> %.2f", w, h, s_kx, g_hudScaleX, (float)game::MsFov,
+    Log("hud: %dx%d, kx %.4f, hudScaleX %.7f, fov %.2f -> %.2f", w, h, s_kx, g_hudScaleX, (float)game::MsFov(),
         g_fovHorPlus);
 }
 
@@ -122,17 +122,19 @@ static void __cdecl OnCameraSize(fix::Regs* r, fix::Fpu*) {
         vw[0] = (float)(V * s_kx);   // Hor+: wider horizontally
         vw[1] = V / ar;              // original 4:3 vertical extent
     }
-    r->cont = 0x58078C;  // RwCameraSetViewWindow(cam, vw)
+    r->cont = At(0x58078C);  // RwCameraSetViewWindow(cam, vw)
 }
 
 // CalculateAspectRatio tail (fld ms_fAspectRatio; ret): keep the camera code's aspect in step
-static void __cdecl OnAspectRatio(fix::Regs*, fix::Fpu*) { g_arHorPlus = (float)(game::MsAspectRatio * Widening()); }
+static void __cdecl OnAspectRatio(fix::Regs*, fix::Fpu*) { g_arHorPlus = (float)(game::MsAspectRatio() * Widening()); }
 
 // Replaces CDraw::SetFOV (fld [esp+4]; fstp ms_fFOV; ret), the only writer of ms_fFOV
+static float* s_msFov;  // &game::MsFov(), set before SetFOV is installed
 __declspec(naked) static void SetFOV() {
     __asm {
         fld dword ptr [esp + 4]
-        fstp dword ptr ds:[0x695660]
+        mov eax, s_msFov
+        fstp dword ptr [eax]
         pushad
         pushfd
         sub esp, 108
@@ -166,14 +168,14 @@ enum class SiteState { Taken, Left, Bad };
 static HMODULE SiteOwner(const Site& s) {
     HMODULE m = nullptr;
     GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                       (LPCSTR)(uintptr_t)*(const uint32_t*)(s.addr + 2), &m);
+                       (LPCSTR)(uintptr_t)*(const uint32_t*)(At(s.addr) + 2), &m);
     return m;
 }
 
 static SiteState HudSite(const Site& s) {
-    const uint8_t* b = (const uint8_t*)s.addr;
-    if (b[0] != 0xD8 || b[1] != 0x0D) return SiteState::Bad;
-    if (*(const uint32_t*)(b + 2) == s.copy) return SiteState::Taken;
+    const uint8_t* b = (const uint8_t*)At(s.addr);
+    if (!b || b[0] != 0xD8 || b[1] != 0x0D) return SiteState::Bad;
+    if (*(const uint32_t*)(b + 2) == At(s.copy)) return SiteState::Taken;
     HMODULE m = SiteOwner(s);
     return m && m != GetModuleHandleA(nullptr) ? SiteState::Left : SiteState::Bad;
 }
@@ -185,12 +187,12 @@ static SiteState HudSite(const Site& s) {
 // Printed with the game's font right before the frame's last font flush (Idle 0x4A600D,
 // after the HUD and fades); hidden while the pause menu is open. CFont::Details is saved and restored.
 constexpr uintptr_t kFontDetails = 0x97E828;  // CFont::Details, 0x54 bytes
-static auto DrawFonts = (void(__cdecl*)())0x550140;
-static auto PrintString = (void(__cdecl*)(float, float, const uint16_t*))0x550F30;
+constexpr GameFn<void(__cdecl*)()> DrawFonts{0x550140};
+constexpr GameFn<void(__cdecl*)(float, float, const uint16_t*)> PrintString{0x550F30};
 static double s_fpsStart;
 static int s_fpsFrames, s_fps;
 
-template <class T> static T& Font(uint32_t off) { return *(T*)(kFontDetails + off); }
+template <class T> static T& Font(uint32_t off) { return *(T*)(At(kFontDetails) + off); }
 
 static void __cdecl DrawFontsWithFps() {
     double now = timer::Now();
@@ -200,10 +202,10 @@ static void __cdecl DrawFontsWithFps() {
         s_fpsStart = now;
         s_fpsFrames = 0;
     }
-    if (g_cfg.showFps && s_fps > 0 && !game::MenuActive && game::RsGlobalHeight > 0) {  // HUD only, not the menu
+    if (g_cfg.showFps && s_fps > 0 && !game::MenuActive() && game::RsGlobalHeight() > 0) {  // HUD only, not the menu
         uint8_t saved[0x54];
-        memcpy(saved, (void*)kFontDetails, sizeof saved);
-        float h = (float)game::RsGlobalHeight;
+        memcpy(saved, (void*)At(kFontDetails), sizeof saved);
+        float h = (float)game::RsGlobalHeight();
         static const uint8_t color[4] = {255, 255, 255, 230}, shadow[4] = {0, 0, 0, 230};
         memcpy(&Font<uint8_t>(0x00), color, 4);
         Font<float>(0x04) = 0.45f * h / 480.0f;  // X scaled by height, like the aspect-correct HUD
@@ -212,8 +214,8 @@ static void __cdecl DrawFontsWithFps() {
         memset(&Font<uint8_t>(0x18), 0, 9);  // justify, centre, right, background(s), prop, shadow, flash, bold
         Font<uint8_t>(0x1D) = 1;             // proportional
         Font<float>(0x24) = 255.0f;          // no alpha fade
-        Font<float>(0x2C) = (float)game::RsGlobalWidth;  // wrap
-        Font<int16_t>(0x38) = 1;                         // FONT_STANDARD
+        Font<float>(0x2C) = (float)game::RsGlobalWidth();  // wrap
+        Font<int16_t>(0x38) = 1;                           // FONT_STANDARD
         Font<uint8_t>(0x3A) = 0;
         Font<int16_t>(0x40) = 2;  // drop shadow
         memcpy(&Font<uint8_t>(0x42), shadow, 4);
@@ -223,7 +225,7 @@ static void __cdecl DrawFontsWithFps() {
         for (int i = 0; i <= n; ++i) wide[i] = (uint8_t)text[i];
         PrintString(6.0f * h / 480.0f, 4.0f * h / 448.0f, wide);
         uint32_t strings = Font<uint32_t>(0x50);  // per-frame string counter: keep PrintString's increment
-        memcpy((void*)kFontDetails, saved, sizeof saved);
+        memcpy((void*)At(kFontDetails), saved, sizeof saved);
         Font<uint32_t>(0x50) = strings;
     }
     DrawFonts();
@@ -231,24 +233,24 @@ static void __cdecl DrawFontsWithFps() {
 
 static void InstallFps() {
     PatchGroup g("hud: FPS counter");
-    g.Expect(0x4A600D, "E8 2E A1 0A 00")                                // Idle: CFont::DrawFonts after menus and fade
-        .Expect(0x550140, "E8 DB 17 00 00 C3")                          // CFont::DrawFonts
-        .Expect(0x550F30, "53 56 57 55 83 EC 38 8B 74 24 54")           // CFont::PrintString(x, y, wchar*)
+    g.Expect(At(0x4A600D), "E8 <550140>")                               // Idle: CFont::DrawFonts after menus and fade
+        .Expect(At(0x550140), "E8 <551920> C3")                         // CFont::DrawFonts
+        .Expect(At(0x550F30), "53 56 57 55 83 EC 38 8B 74 24 54")       // CFont::PrintString(x, y, wchar*)
         // The CFont::Details fields DrawFontsWithFps writes directly, as the CFont setters write them:
-        .Expect(0x55006A, "88 15 28 E8 97 00 8A 43 01 A2 29 E8 97 00")  // SetColor: +0
+        .Expect(At(0x55006A), "88 15 [97E828] 8A 43 01 A2 [97E829]")    // SetColor: +0
         // SetScale: +4, +8
-        .Expect(0x550120, "D9 44 24 04 D9 1D 2C E8 97 00 D9 44 24 08 D9 1D 30 E8 97 00")
-        .Expect(0x5500F0, "D9 44 24 04 D9 1D 34 E8 97 00")              // SetSlant: +0xC
+        .Expect(At(0x550120), "D9 44 24 04 D9 1D [97E82C] D9 44 24 08 D9 1D [97E830]")
+        .Expect(At(0x5500F0), "D9 44 24 04 D9 1D [97E834]")              // SetSlant: +0xC
         // SetJustifyOn: +0x18..+0x1A
-        .Expect(0x550040, "C6 05 40 E8 97 00 01 C6 05 41 E8 97 00 00 C6 05 42 E8 97 00 00")
-        .Expect(0x54FF10, "C6 05 45 E8 97 00 01")                       // SetPropOn: +0x1D
-        .Expect(0x54FEB0, "D9 44 24 04 D9 1D 4C E8 97 00")              // SetAlphaFade: +0x24
-        .Expect(0x54FFF0, "D9 44 24 04 D9 1D 54 E8 97 00")              // SetWrapx: +0x2C
+        .Expect(At(0x550040), "C6 05 [97E840] 01 C6 05 [97E841] 00 C6 05 [97E842] 00")
+        .Expect(At(0x54FF10), "C6 05 [97E845] 01")                      // SetPropOn: +0x1D
+        .Expect(At(0x54FEB0), "D9 44 24 04 D9 1D [97E84C]")             // SetAlphaFade: +0x24
+        .Expect(At(0x54FFF0), "D9 44 24 04 D9 1D [97E854]")             // SetWrapx: +0x2C
         // SetFontStyle: +0x38, +0x3A
-        .Expect(0x54FEE5, "66 C7 05 60 E8 97 00 01 00 C6 05 62 E8 97 00 01")
-        .Expect(0x54FE10, "8B 44 24 04 66 A3 68 E8 97 00")              // SetDropShadowPosition: +0x40
-        .Expect(0x54FE2A, "88 15 6A E8 97 00");                         // SetDropColor: +0x42
-    if (g.Ok()) s_fpsHook = fix::RetargetCall(0x4A600D, 0x550140, (void*)&DrawFontsWithFps, "hud: FPS counter");
+        .Expect(At(0x54FEE5), "66 C7 05 [97E860] 01 00 C6 05 [97E862] 01")
+        .Expect(At(0x54FE10), "8B 44 24 04 66 A3 [97E868]")             // SetDropShadowPosition: +0x40
+        .Expect(At(0x54FE2A), "88 15 [97E86A]");                        // SetDropColor: +0x42
+    if (g.Ok()) s_fpsHook = fix::RetargetCall(At(0x4A600D), At(0x550140), (void*)&DrawFontsWithFps, "hud: FPS counter");
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -260,7 +262,7 @@ void Install() {
     s_fov = s_hud = true;
 
     PatchGroup g("hud: camera size hook");
-    g.Expect(0x580729, "8B 44 24 1C 83 E0 01 74 16 D9 44 24 4C D8 74 24 50");
+    g.Expect(At(0x580729), "8B 44 24 1C 83 E0 01 74 16 D9 44 24 4C D8 74 24 50");
     if (!g.Ok()) {
         Log("hud: widescreen disabled (CameraSize mismatch)");
         s_fov = s_hud = false;
@@ -269,20 +271,23 @@ void Install() {
 
     if (s_fov) {
         PatchGroup f("hud: Hor+ FOV");
-        f.Expect(0x54A1D0, "D9 44 24 04 D9 1D 60 56 69 00 C3");     // CDraw::SetFOV
-        f.Expect(0x54A160, "80 3D 5A 86 86 00 00");                 // CalculateAspectRatio: widescreen pref
-        f.Expect(0x54A1BA, "D9 05 40 CD 94 00 C3");                 // CalculateAspectRatio tail
-        f.Expect(0x46C2D0, "D8 0D 60 56 69 00");                    // frustum: fmul ms_fFOV
-        f.Expect(0x57785D, "D9 05 18 85 69 00 D8 35 60 56 69 00");  // CalcScreenCoors: fld 70.0 (width only)
+        f.Expect(At(0x54A1D0), "D9 44 24 04 D9 1D [695660] C3");    // CDraw::SetFOV
+        f.Expect(At(0x54A160), "80 3D [86865A] 00");                // CalculateAspectRatio: widescreen pref
+        f.Expect(At(0x54A1BA), "D9 05 [94CD40] C3");                // CalculateAspectRatio tail
+        f.Expect(At(0x46C2D0), "D8 0D [695660]");                   // frustum: fmul ms_fFOV
+        f.Expect(At(0x57785D), "D9 05 [698518] D8 35 [695660]");    // CalcScreenCoors: fld 70.0 (width only)
         static const uintptr_t kAspect[] = {0x46F81D, 0x473EAA, 0x47C690, 0x47C963};
-        for (uintptr_t a : kAspect) f.Expect(a, "D8 0D 40 CD 94 00");
+        for (uintptr_t a : kAspect) f.Expect(At(a), "D8 0D [94CD40]");
         if (f.Ok()) {
-            mem::Jmp(0x54A1D0, (void*)&SetFOV);
-            fix::Redirect(0x54A160, "80 3D 5A 86 86 00 00", 0x86865A, &s_noWidePref, "aspect: ignore widescreen pref");
-            fix::Hook(0x54A1BA, 6, "D9 05 40 CD 94 00", OnAspectRatio, "aspect: Hor+ copy");
-            fix::Redirect(0x46C2D0, "D8 0D 60 56 69 00", 0x695660, &g_fovHorPlus, "frustum FOV");
-            fix::Redirect(0x57785D, "D9 05 18 85 69 00", 0x698518, &g_sprite70w, "sprite width");
-            for (uintptr_t a : kAspect) fix::Redirect(a, "D8 0D 40 CD 94 00", 0x94CD40, &g_arHorPlus, "camera aspect");
+            s_msFov = &game::MsFov();
+            mem::Jmp(At(0x54A1D0), (void*)&SetFOV);
+            fix::Redirect(At(0x54A160), "80 3D [86865A] 00", At(0x86865A), &s_noWidePref,
+                          "aspect: ignore widescreen pref");
+            fix::Hook(At(0x54A1BA), 6, "D9 05 [94CD40]", OnAspectRatio, "aspect: Hor+ copy");
+            fix::Redirect(At(0x46C2D0), "D8 0D [695660]", At(0x695660), &g_fovHorPlus, "frustum FOV");
+            fix::Redirect(At(0x57785D), "D9 05 [698518]", At(0x698518), &g_sprite70w, "sprite width");
+            for (uintptr_t a : kAspect)
+                fix::Redirect(At(a), "D8 0D [94CD40]", At(0x94CD40), &g_arHorPlus, "camera aspect");
         } else s_fov = false;
     }
 
@@ -304,12 +309,13 @@ void Install() {
             s_hud = false;
         } else {
             for (const Site& s : kHudSites)
-                if (HudSite(s) == SiteState::Taken) mem::Put<uint32_t>(s.addr + 2, (uint32_t)(uintptr_t)&g_hudScaleX);
+                if (HudSite(s) == SiteState::Taken)
+                    mem::Put<uint32_t>(At(s.addr) + 2, (uint32_t)(uintptr_t)&g_hudScaleX);
             Log("hud: aspect-correct HUD applied (%d sites)", (int)std::size(kHudSites) - left);
         }
     }
 
-    if ((s_fov || s_hud) && !fix::Hook(0x580729, 7, "8B 44 24 1C 83 E0 01", OnCameraSize, "CameraSize view window"))
+    if ((s_fov || s_hud) && !fix::Hook(At(0x580729), 7, "8B 44 24 1C 83 E0 01", OnCameraSize, "CameraSize view window"))
         s_fov = s_hud = false;
 }
 

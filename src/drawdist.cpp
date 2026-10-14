@@ -70,7 +70,7 @@ static bool s_ready, s_moved;
 static double s_fadeCarry;
 
 bool Ready() { return s_ready; }
-void* const* VisibleList() { return s_moved ? s_visible : (void* const*)kVisibleList; }
+void* const* VisibleList() { return s_moved ? s_visible : (void* const*)At(kVisibleList); }
 int VisibleCapacity() { return s_moved ? kVisibleMax : 2000; }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -93,13 +93,13 @@ struct Emit {
 // limit keeps that area at most what g_lodLimit gives at a 70 degree field of view.
 void SetScanDistance(float m) {
     float d = kOriginalLod * m;
-    float fov = game::MsFov;
+    float fov = game::MsFov();
     if (fov < 5.0f) fov = 5.0f;
     float limit = g_lodLimit * sqrtf(tanf(35.0f * 0.017453293f) / tanf(fov * 0.5f * 0.017453293f));
     if (d > limit) d = limit;
     if (!g_lodFix || !(d > kOriginalLod)) d = kOriginalLod;
     g_lodDistance = d;
-    *(float*)kLodDistance = d;
+    *(float*)At(kLodDistance) = d;
 }
 
 static void __cdecl OnLodMultiplier(fix::Regs* r, fix::Fpu*) { SetScanDistance(*(float*)(r->ebx + 0xF0)); }
@@ -114,26 +114,26 @@ struct Insert {
     const char* bytes;
 };
 static const Insert kInserts[] = {
-    {0x4C74D3, "A1 EC C1 A0 00 FF 05 EC C1 A0 00 89 2C 85 00 45 7D 00"},  // ScanSectorList
-    {0x4C76AD, "A1 EC C1 A0 00 FF 05 EC C1 A0 00 89 2C 85 00 45 7D 00"},  // ScanSectorList_Priority
-    {0x4C846D, "A1 EC C1 A0 00 FF 05 EC C1 A0 00 89 34 85 00 45 7D 00"},  // ScanBigBuildingList
+    {0x4C74D3, "A1 [A0C1EC] FF 05 [A0C1EC] 89 2C 85 [7D4500]"},           // ScanSectorList
+    {0x4C76AD, "A1 [A0C1EC] FF 05 [A0C1EC] 89 2C 85 [7D4500]"},           // ScanSectorList_Priority
+    {0x4C846D, "A1 [A0C1EC] FF 05 [A0C1EC] 89 34 85 [7D4500]"},           // ScanBigBuildingList
 };
 static const Insert kReaders[] = {
-    {0x4C9E40, "8B 34 AD 00 45 7D 00"},  // render pass over the visible list
-    {0x4CA078, "8B 0C 9D 00 45 7D 00"},  // render pass over the visible list
-    {0x4CA0C0, "8B 0C AD 00 45 7D 00"},  // CRenderer::PreRender
+    {0x4C9E40, "8B 34 AD [7D4500]"},     // render pass over the visible list
+    {0x4CA078, "8B 0C 9D [7D4500]"},     // render pass over the visible list
+    {0x4CA0C0, "8B 0C AD [7D4500]"},     // CRenderer::PreRender
 };
 
 static uint8_t* InsertThunk(const Insert& in) {
     uint8_t* t = fix::AllocCode(48);
     if (!t) return nullptr;
-    uintptr_t back = in.at + 18;
-    uint8_t modrm = *(const uint8_t*)(in.at + 12);  // 0x2C ebp, 0x34 esi
+    uintptr_t back = At(in.at) + 18;
+    uint8_t modrm = *(const uint8_t*)(At(in.at) + 12);  // 0x2C ebp, 0x34 esi
     Emit e{t};
-    e.B(0xA1); e.U32(kVisibleCount);                          // mov eax, [count]
+    e.B(0xA1); e.U32(At(kVisibleCount));                      // mov eax, [count]
     e.B(0x3D); e.U32(kVisibleMax);                            // cmp eax, max
     e.B(0x73); e.B(18);                                       // jae full
-    e.B(0xFF); e.B(0x05); e.U32(kVisibleCount);               // inc dword [count]
+    e.B(0xFF); e.B(0x05); e.U32(At(kVisibleCount));           // inc dword [count]
     e.B(0x89); e.B(modrm); e.B(0x85); e.U32((uint32_t)(uintptr_t)s_visible);  // mov [eax*4+list], reg
     e.Jmp(back);
     e.B(0xFF); e.B(0x05); e.U32((uint32_t)(uintptr_t)&g_visibleLost);         // full: inc dword [lost]
@@ -174,9 +174,9 @@ static bool FadeThunk(const Fade& f) {
     e.B(0xB8); e.U32(0xFF);                                   // mov eax, 0xFF
     e.B(0x88); e.B(m); e.B(0x41);                             // store: mov [base+0x41], al
     e.B(0x58);                                                // pop eax
-    e.Jmp(f.next);
+    e.Jmp(At(f.next));
     FlushInstructionCache(GetCurrentProcess(), t, e.p - t);
-    mem::Jmp(f.at, t, f.next - f.at);
+    mem::Jmp(At(f.at), t, f.next - f.at);
     fix::Count(true);
     return true;
 }
@@ -200,32 +200,33 @@ void UpdateFadeStep() {
 
 void Install(bool world) {
     PatchGroup g("drawdist: scan distance, render lists and streaming memory");
-    g.Expect(kLodDistance, "00 00 96 43")
-        .Expect(0x46DD9D, "D9 83 F0 00 00 00 D8 0D 28 F2 68 00 D9 9B F0 00 00 00 8B 83 08 08 00 00")
-        .Expect(kAlphaListSize - 16, "B9 8C ED A0 00 C7 05 04 E3 97 00 00 00 00 00 68 C8 00 00 00")
-        .Expect(kStreamingSize - 6, "C7 05 5C CD 94 00 00 00 D0 02");
-    for (const Insert& in : kInserts) g.Expect(in.at, in.bytes);
-    for (const Insert& rd : kReaders) g.Expect(rd.at, rd.bytes);
+    g.Expect(At(kLodDistance), "00 00 96 43")
+        .Expect(At(0x46DD9D), "D9 83 F0 00 00 00 D8 0D [68F228] D9 9B F0 00 00 00 8B 83 08 08 00 00")
+        .Expect(At(kAlphaListSize) - 16, "B9 [A0ED8C] C7 05 [97E304] 00 00 00 00 68 C8 00 00 00")
+        .Expect(At(kStreamingSize) - 6, "C7 05 [94CD5C] 00 00 D0 02");
+    for (const Insert& in : kInserts) g.Expect(At(in.at), in.bytes);
+    for (const Insert& rd : kReaders) g.Expect(At(rd.at), rd.bytes);
     uint8_t* thunks[3] = {};
     for (int i = 0; i < 3; ++i) thunks[i] = InsertThunk(kInserts[i]);
     if (!thunks[0] || !thunks[1] || !thunks[2]) g.ok = false;
     // The list moves whole (all inserts and readers) before the scan grows
     if (g.Ok()) {
         for (int i = 0; i < 3; ++i) {
-            mem::Jmp(kInserts[i].at, thunks[i], 18);
+            mem::Jmp(At(kInserts[i].at), thunks[i], 18);
             fix::Count(true);
         }
-        for (const Insert& rd : kReaders) fix::Redirect(rd.at, rd.bytes, kVisibleList, s_visible, "drawdist: visible list");
+        for (const Insert& rd : kReaders)
+            fix::Redirect(At(rd.at), rd.bytes, At(kVisibleList), s_visible, "drawdist: visible list");
         s_moved = true;
-        mem::Put<uint32_t>(kAlphaListSize, kAlphaEntities);
-        mem::Put<uint32_t>(kStreamingSize, kStreamingBytes);
-        s_ready = fix::Hook(kLodMultiplier, 6, "8B 83 08 08 00 00", OnLodMultiplier, "drawdist: scan distance");
+        mem::Put<uint32_t>(At(kAlphaListSize), kAlphaEntities);
+        mem::Put<uint32_t>(At(kStreamingSize), kStreamingBytes);
+        s_ready = fix::Hook(At(kLodMultiplier), 6, "8B 83 08 08 00 00", OnLodMultiplier, "drawdist: scan distance");
         Log("drawdist: scan distance up to %.0f m, visible list %d, sorted list %u, streaming %u MB", g_lodLimit,
             kVisibleMax, kAlphaEntities, kStreamingBytes >> 20);
     }
     if (!world) return;
     PatchGroup f("drawdist: building fade-in");
-    for (const Fade& fd : kFades) f.Expect(fd.at, fd.bytes);
+    for (const Fade& fd : kFades) f.Expect(At(fd.at), fd.bytes);
     if (!f.Ok()) return;
     for (const Fade& fd : kFades) FadeThunk(fd);
     timer::OnDrawnFrame(UpdateFadeStep);

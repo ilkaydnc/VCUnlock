@@ -153,7 +153,7 @@ static void AdjustParams(void* d3d, UINT adapter, D3DPRESENT_PARAMETERS8* pp, co
         s_path = WindowedDiscard;
         g_refresh = DesktopRefresh();
     }
-    if (s_vblankSync) InitVBlank(pp->hDeviceWindow ? pp->hDeviceWindow : (HWND)game::RwD3D8Window);
+    if (s_vblankSync) InitVBlank(pp->hDeviceWindow ? pp->hDeviceWindow : (HWND)game::RwD3D8Window());
     timer::SetRefresh(g_refresh);
     Log("%s: %ux%u fmt %u windowed %d swap %u refresh %u interval %08X ms %u -> display %d Hz", who,
         pp->BackBufferWidth, pp->BackBufferHeight, pp->BackBufferFormat, pp->Windowed, pp->SwapEffect,
@@ -168,7 +168,7 @@ void ApplyVsync() {
         return;
     }
     s_vblankSync = g_cfg.vsync != 0;
-    if (s_vblankSync) InitVBlank((HWND)game::RwD3D8Window);
+    if (s_vblankSync) InitVBlank((HWND)game::RwD3D8Window());
 }
 
 // The 32-bit display modes of the adapter, read once per device: EnumAdapterModes is slow (milliseconds a call).
@@ -257,8 +257,8 @@ static void* __stdcall Direct3DCreate8(UINT sdk) {
 // Replaces psCameraShowRaster(RwCamera*): the vsync flag always matches the device state.
 static void __cdecl CameraShowRaster(void* camera) {
     using Fn = void*(__cdecl*)(void*, void*, unsigned);
-    void* window = *(void**)game::RsGlobalPs;
-    ((Fn)game::RwCameraShowRaster)(camera, window, s_rwFlag);
+    void* window = *(void**)game::RsGlobalPs();
+    ((Fn)At(game::RwCameraShowRaster))(camera, window, s_rwFlag);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -272,7 +272,7 @@ void InstallEarly(HMODULE exe) {
 
 void Install() {
     PatchGroup g("render: psCameraShowRaster constant vsync");
-    g.Expect(game::psCameraShowRaster, "80 3D 5D 86 86 00 00 53 8B 5C 24 08 75 09 80 3D 70 86 86 00 00");
-    if (g.Ok()) mem::Jmp(game::psCameraShowRaster, (void*)&CameraShowRaster);
+    g.Expect(At(game::psCameraShowRaster), "80 3D [86865D] 00 53 8B 5C 24 08 75 09 80 3D [868670] 00");
+    if (g.Ok()) mem::Jmp(At(game::psCameraShowRaster), (void*)&CameraShowRaster);
 }
 }  // namespace render

@@ -14,8 +14,9 @@
 //
 // ---------------------------------------------------------------------------------------------------------------------
 //
-//   Every game variable and function VCUnlock uses, by its address in the Steam executable. GVAR declares a reference
-//   to a game global, so game::TimeInMs reads and writes the game's own variable.
+//   Every game variable and function VCUnlock uses, by its address in the Steam executable. GVAR declares an accessor
+//   to a game global, so game::TimeInMs() reads and writes the game's own variable in whichever version runs. The
+//   other constants are Steam addresses; code uses them through At() (version.h).
 //
 //   Each address was verified in the Steam binary. Code that patches near one checks the bytes again at runtime, so a
 //   different executable is refused instead of corrupted.
@@ -31,8 +32,9 @@
 
 #pragma once
 #include <cstdint>
+#include "version.h"
 
-#define GVAR(type, name, addr) inline type& name = *reinterpret_cast<type*>(addr)
+#define GVAR(type, name, addr) inline type& name() { return *reinterpret_cast<type*>(At(addr)); }
 
 namespace game {
 
