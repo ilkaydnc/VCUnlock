@@ -17,7 +17,8 @@
 //   The identity dwords are the ones the community tools use to tell the executables apart (the same address holds
 //   0xB85548EC in each of 1.0, 1.1 and Steam, at a different place). On Steam it sits in .text, so it only matches
 //   after SteamStub has decrypted the code, which makes it the decryption check as well; before that the same dword
-//   holds its encrypted value, which still tells the Steam executable from an unknown one.
+//   holds its encrypted value, which still tells the Steam executable from an unknown one. The Japanese executable is
+//   a separate build: its identity is the dword at 0x601048.
 //
 // ---------------------------------------------------------------------------------------------------------------------
 //
@@ -42,10 +43,14 @@ namespace {
 constexpr Range kMap10[] = {
 #include "versions/vc_10.inc"
 };
+constexpr Range kMapJP[] = {
+#include "versions/vc_jp.inc"
+};
 
 constexpr Version kVersions[] = {
-    {"Steam", 0x666BA5, 0xB85548EC, 0xEB698EFC, nullptr, 0},
-    {"1.0", 0x667BF5, 0xB85548EC, 0, kMap10, std::size(kMap10)},
+    {Steam, "Steam", 0x666BA5, 0xB85548EC, 0xEB698EFC, nullptr, 0},
+    {V10, "1.0", 0x667BF5, 0xB85548EC, 0, kMap10, std::size(kMap10)},
+    {JP, "JP", 0x601048, 0x5E5F5D60, 0, kMapJP, std::size(kMapJP)},
 };
 
 const Version* s_current;
@@ -78,6 +83,8 @@ bool Detect() {
 }
 
 const Version* Current() { return s_current; }
+
+bool Is(Id id) { return s_current && s_current->id == id; }
 
 bool Known() {
     if (Detect()) return true;

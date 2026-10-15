@@ -370,9 +370,15 @@ static bool Same(const Entry& e, const Entry& want) { return memcmp(&e, &want, s
 
 void Install(bool world) {
     PatchGroup g("menu: Display Setup and Audio Setup rows");
+    // The Japanese DrawStandardMenus has a smaller stack frame, so its stack offsets differ and the lea before
+    // kDrawDimmed is shorter.
     g.Expect(At(kDrawValue), "0F BF 86 [6D7B4A] 83 E8 07")
-        .Expect(At(kDrawText) - 12, "B9 [94A228] E8 <584D60> 89 C3 80 BC 24 5C 01 00 00 00")
-        .Expect(At(kDrawDimmed) - 19, "80 7D 6C 00 59 8D 9C 24 94 00 00 00 59 0F 85 <49EDF4> 8B 85 08 01 00 00")
+        .Expect(At(kDrawText) - 12, ver::Is(ver::JP) ? "B9 [94A228] E8 <584D60> 89 C3 80 BC 24 44 01 00 00 00"
+                                                     : "B9 [94A228] E8 <584D60> 89 C3 80 BC 24 5C 01 00 00 00")
+        // cmp [ebp+0x6C], 0; lea ebx, text; jne kDrawText; then kDrawDimmed
+        .Expect(At(0x49EC6E), ver::Is(ver::JP)
+                                  ? "80 7D 6C 00 59 8D 5C 24 7C 59 0F 85 <49EDF4> 8B 85 08 01 00 00"
+                                  : "80 7D 6C 00 59 8D 9C 24 94 00 00 00 59 0F 85 <49EDF4> 8B 85 08 01 00 00")
         .Expect(At(kEnter), "0F BF 9F [6D7B4A] 83 EB 02")
         .Expect(At(kEnterDone) - 7, "89 E9 E8 <498BED> 80 BC 24 80 00 00 00 00")
         .Expect(At(kChange), "0F BF 04 7D [6D7B4A] 83 E8 0F")

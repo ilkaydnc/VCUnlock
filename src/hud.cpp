@@ -39,6 +39,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iterator>
+#include <span>
 
 namespace hud {
 
@@ -152,30 +153,46 @@ __declspec(naked) static void SetFOV() {
 //  HUD SITES
 // ---------------------------------------------------------------------------------------------------------------------
 
-// An fmul that reads one of the game's 1/640 copies; see hud_sites.inc.
+// An fmul that reads one of the game's 1/640 copies; see hud_sites.inc. A site one executable does not have names it.
 struct Site {
     uint32_t addr, copy;
+    int absentIn = -1;  // a ver::Id
 };
 
 static const Site kHudSites[] = {
 #include "hud_sites.inc"
 };
 
+// The sites of the running executable: the rows it has, through the map, and its own ones.
+struct Here {
+    uintptr_t at, copy;
+    uint32_t row;  // the Steam address of the row, 0 for a site of this executable only
+};
+
+static int HereSites(Here* out) {
+    int n = 0;
+    for (const Site& s : kHudSites)
+        if (s.absentIn < 0 || !ver::Is(ver::Id(s.absentIn))) out[n++] = {At(s.addr), At(s.copy), s.addr};
+    // The Japanese CHud::Draw moves one centred text right by 15 units, 0x17 bytes after the counterpart of 0x55B917.
+    if (ver::Is(ver::JP)) out[n++] = {At(0x55B917) ? At(0x55B917) + 0x17 : 0, At(0x696A78), 0};
+    return n;
+}
+
 // Taken: still reads the game's copy. Left: another mod (SilentPatch: the radar blur exclusion) points it at its own
 // constant, so that element stays the mod's. Anything else is a different executable.
 enum class SiteState { Taken, Left, Bad };
 
-static HMODULE SiteOwner(const Site& s) {
+static HMODULE SiteOwner(const Here& s) {
     HMODULE m = nullptr;
     GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                       (LPCSTR)(uintptr_t)*(const uint32_t*)(At(s.addr) + 2), &m);
+                       (LPCSTR)(uintptr_t)*(const uint32_t*)(s.at + 2), &m);
     return m;
 }
 
-static SiteState HudSite(const Site& s) {
-    const uint8_t* b = (const uint8_t*)At(s.addr);
+static SiteState HudSite(const Here& s) {
+    const uint8_t* b = (const uint8_t*)s.at;
     if (!b || b[0] != 0xD8 || b[1] != 0x0D) return SiteState::Bad;
-    if (*(const uint32_t*)(b + 2) == At(s.copy)) return SiteState::Taken;
+    if (*(const uint32_t*)(b + 2) == s.copy) return SiteState::Taken;
     HMODULE m = SiteOwner(s);
     return m && m != GetModuleHandleA(nullptr) ? SiteState::Left : SiteState::Bad;
 }
@@ -187,12 +204,18 @@ static SiteState HudSite(const Site& s) {
 // Printed with the game's font right before the frame's last font flush (Idle 0x4A600D,
 // after the HUD and fades); hidden while the pause menu is open. CFont::Details is saved and restored.
 constexpr uintptr_t kFontDetails = 0x97E828;  // CFont::Details, 0x54 bytes
+constexpr uint32_t kFontStrings = 0x50;       // its last field, the per-frame string counter
+constexpr size_t kFontCopy = 0x60;            // room for the copy (the Japanese Details is 0x57 bytes to that field)
 constexpr GameFn<void(__cdecl*)()> DrawFonts{0x550140};
 constexpr GameFn<void(__cdecl*)(float, float, const uint16_t*)> PrintString{0x550F30};
 static double s_fpsStart;
 static int s_fpsFrames, s_fps;
 
-template <class T> static T& Font(uint32_t off) { return *(T*)(At(kFontDetails) + off); }
+// Each field goes through the map: the Japanese Details has a byte before the colour, so its fields are not at one
+// shift.
+template <class T> static T& Font(uint32_t off) { return *(T*)At(kFontDetails + off); }
+static uint8_t* FontDetails() { return (uint8_t*)At(kFontDetails); }
+static size_t FontDetailsSize() { return At(kFontDetails + kFontStrings) + 4 - At(kFontDetails); }
 
 static void __cdecl DrawFontsWithFps() {
     double now = timer::Now();
@@ -203,8 +226,9 @@ static void __cdecl DrawFontsWithFps() {
         s_fpsFrames = 0;
     }
     if (g_cfg.showFps && s_fps > 0 && !game::MenuActive() && game::RsGlobalHeight() > 0) {  // HUD only, not the menu
-        uint8_t saved[0x54];
-        memcpy(saved, (void*)At(kFontDetails), sizeof saved);
+        uint8_t saved[kFontCopy];
+        size_t size = FontDetailsSize();
+        memcpy(saved, FontDetails(), size);
         float h = (float)game::RsGlobalHeight();
         static const uint8_t color[4] = {255, 255, 255, 230}, shadow[4] = {0, 0, 0, 230};
         memcpy(&Font<uint8_t>(0x00), color, 4);
@@ -224,9 +248,9 @@ static void __cdecl DrawFontsWithFps() {
         uint16_t wide[16];
         for (int i = 0; i <= n; ++i) wide[i] = (uint8_t)text[i];
         PrintString(6.0f * h / 480.0f, 4.0f * h / 448.0f, wide);
-        uint32_t strings = Font<uint32_t>(0x50);  // per-frame string counter: keep PrintString's increment
-        memcpy((void*)At(kFontDetails), saved, sizeof saved);
-        Font<uint32_t>(0x50) = strings;
+        uint32_t strings = Font<uint32_t>(kFontStrings);  // keep PrintString's increment
+        memcpy(FontDetails(), saved, size);
+        Font<uint32_t>(kFontStrings) = strings;
     }
     DrawFonts();
 }
@@ -235,7 +259,8 @@ static void InstallFps() {
     PatchGroup g("hud: FPS counter");
     g.Expect(At(0x4A600D), "E8 <550140>")                               // Idle: CFont::DrawFonts after menus and fade
         .Expect(At(0x550140), "E8 <551920> C3")                         // CFont::DrawFonts
-        .Expect(At(0x550F30), "53 56 57 55 83 EC 38 8B 74 24 54")       // CFont::PrintString(x, y, wchar*)
+        // CFont::PrintString(x, y, wchar*); the Japanese one first leaves out strings that start with '*'
+        .Expect(At(0x550F30), ver::Is(ver::JP) ? "53 83 EC 10 8B 5C 24 20" : "53 56 57 55 83 EC 38 8B 74 24 54")
         // The CFont::Details fields DrawFontsWithFps writes directly, as the CFont setters write them:
         .Expect(At(0x55006A), "88 15 [97E828] 8A 43 01 A2 [97E829]")    // SetColor: +0
         // SetScale: +4, +8
@@ -250,6 +275,10 @@ static void InstallFps() {
         .Expect(At(0x54FEE5), "66 C7 05 [97E860] 01 00 C6 05 [97E862] 01")
         .Expect(At(0x54FE10), "8B 44 24 04 66 A3 [97E868]")             // SetDropShadowPosition: +0x40
         .Expect(At(0x54FE2A), "88 15 [97E86A]");                        // SetDropColor: +0x42
+    if (FontDetailsSize() > kFontCopy) {
+        Log("[hud: FPS counter] CFont::Details is %u bytes here", (unsigned)FontDetailsSize());
+        g.ok = false;
+    }
     if (g.Ok()) s_fpsHook = fix::RetargetCall(At(0x4A600D), At(0x550140), (void*)&DrawFontsWithFps, "hud: FPS counter");
 }
 
@@ -292,26 +321,26 @@ void Install() {
     }
 
     if (s_hud) {
-        int bad = 0, left = 0;
-        for (const Site& s : kHudSites) {
+        Here sites[std::size(kHudSites) + 1];
+        int count = HereSites(sites), bad = 0, left = 0;
+        for (const Here& s : std::span(sites, count)) {
             SiteState st = HudSite(s);
             if (st == SiteState::Left) {
                 char mod[MAX_PATH];
                 GetModuleFileNameA(SiteOwner(s), mod, MAX_PATH);
                 const char* n = strrchr(mod, '\\');
-                Log("hud: site %08X left to %s", s.addr, n ? n + 1 : mod);
+                Log("hud: site %08X left to %s", s.row ? s.row : s.at, n ? n + 1 : mod);
                 ++left;
             } else if (st == SiteState::Bad && bad++ < 5)
-                Log("hud: site %08X does not match (copy %08X)", s.addr, s.copy);
+                Log("hud: site %08X does not match (copy %08X)", s.row ? s.row : s.at, s.copy);
         }
         if (bad) {
-            Log("hud: aspect-correct HUD SKIPPED (%d of %d sites differ)", bad, (int)std::size(kHudSites));
+            Log("hud: aspect-correct HUD SKIPPED (%d of %d sites differ)", bad, count);
             s_hud = false;
         } else {
-            for (const Site& s : kHudSites)
-                if (HudSite(s) == SiteState::Taken)
-                    mem::Put<uint32_t>(At(s.addr) + 2, (uint32_t)(uintptr_t)&g_hudScaleX);
-            Log("hud: aspect-correct HUD applied (%d sites)", (int)std::size(kHudSites) - left);
+            for (const Here& s : std::span(sites, count))
+                if (HudSite(s) == SiteState::Taken) mem::Put<uint32_t>(s.at + 2, (uint32_t)(uintptr_t)&g_hudScaleX);
+            Log("hud: aspect-correct HUD applied (%d sites)", count - left);
         }
     }
 

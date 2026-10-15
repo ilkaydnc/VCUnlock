@@ -48,7 +48,12 @@ struct Range {
     int32_t delta;
 };
 
+// The known executables. Code that really differs in one of them (other registers, another stack frame) names it:
+//   ver::Is(ver::JP) ? "pattern in the Japanese executable" : "pattern in the others"
+enum Id { Steam, V10, JP };
+
 struct Version {
+    Id id;
     const char* name;
     uintptr_t identAt;     // identity: the dword at identAt in this executable is identValue once its code is readable,
     uint32_t identValue;   //   and packedValue before (Steam: SteamStub decrypts the code after VCUnlock loads)
@@ -60,6 +65,7 @@ struct Version {
 // Finds the running version. False while the code is still encrypted and for an executable that is no known version.
 bool Detect();
 const Version* Current();  // nullptr until Detect() succeeds
+bool Is(Id id);            // the running executable is `id`
 // A known version, readable now or once its code is decrypted. VCUnlock leaves any other executable alone.
 bool Known();
 }  // namespace ver

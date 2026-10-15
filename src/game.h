@@ -98,6 +98,8 @@ constexpr uintptr_t GsubSysInfo = 0x7829E4;  // RwSubSystemInfo[16], 0x50 bytes 
 GVAR(void*, RwEngineInstance, 0x7860C8);     // +0x13C calloc(n, size)
 GVAR(int32_t, ForegroundApp, 0x6D49F4);
 GVAR(int32_t, GameState, 0x9B4F10);
+// GS_PLAYING_GAME. The Japanese executable has four more start-up states (its own logo and intro movies) before it.
+inline bool Playing() { return GameState() == (ver::Is(ver::JP) ? 13 : 9); }
 GVAR(int32_t, RwInitialised, 0x973B7C);
 GVAR(uint32_t, RwRequestedMaxRefresh, 0x6DCDBC);  // RwD3D8EngineSetRefreshRate target
 

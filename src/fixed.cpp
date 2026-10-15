@@ -1377,7 +1377,7 @@ void __cdecl Process() {
     s_frameTicks = 0;
     s_waveMs = game::TimeInMs();
     bool paused = game::UserPause() || game::CodePause() || game::MenuActive() || game::MenuGameNotLoaded() ||
-                  game::GameState() != 9;
+                  !game::Playing();
     if (paused) {
         s_started = false;
         s_acc.Reset();

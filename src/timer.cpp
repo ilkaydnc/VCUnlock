@@ -262,7 +262,7 @@ static void __cdecl Update() {
 
     if (ret == At(game::Idle_CallTimerUpdate_Ret)) {
         // Drawn frame: the fixed world takes the real time; the game clock advances in FixedTick only.
-        bool stopped = paused || MenuActive() || MenuGameNotLoaded() || GameState() != 9;
+        bool stopped = paused || MenuActive() || MenuGameNotLoaded() || !Playing();
         fixed::FrameDelta(paused ? 0.0 : ft);
         kFrame = stopped ? 0.0f : (float)(ft / (1000.0 / 30.0));
         for (int i = 0; i < s_onDrawnN; ++i) s_onDrawn[i]();

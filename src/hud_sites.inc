@@ -133,14 +133,15 @@
 {0x4C3576, 0x68ED1C},
 {0x4C35FD, 0x68ED1C},
 
-// CDarkel::DrawMessages (0x429FB0): rampage messages
+// CDarkel::DrawMessages (0x429FB0): rampage messages. The Japanese executable has no black shadow prints (0x42A319,
+// 0x42A48E): it draws that shadow with the font's drop shadow instead.
 {0x42A057, 0x6864E4},
 {0x42A118, 0x6864E4},
 {0x42A219, 0x6864E4},
-{0x42A319, 0x6864E4},
+{0x42A319, 0x6864E4, ver::JP},
 {0x42A386, 0x6864E4},
 {0x42A425, 0x6864E4},
-{0x42A48E, 0x6864E4},
+{0x42A48E, 0x6864E4, ver::JP},
 {0x42A519, 0x6864E4},
 
 // CGarages::PrintMessages (0x42F280)

@@ -81,7 +81,7 @@ static void Unclip() {
 static void UpdateClip() {
     bool want = s_hwnd && s_active && !s_sizing && !IsIconic(s_hwnd) && GetForegroundWindow() == s_hwnd;
     // windowed: free the cursor in menus so the title bar and other windows stay reachable
-    if (want && s_mode == Windowed && (game::MenuActive() || game::GameState() != 9)) want = false;
+    if (want && s_mode == Windowed && (game::MenuActive() || !game::Playing())) want = false;
     if (!want) {
         Unclip();
         return;
@@ -118,7 +118,7 @@ int BackgroundFps() {
 static void OnFocusLost() {
     s_active = false;
     Unclip();
-    if (g_cfg.pauseOnFocusLoss && game::GameState() == 9 && !game::MenuGameNotLoaded() && !game::MenuActive())
+    if (g_cfg.pauseOnFocusLoss && game::Playing() && !game::MenuGameNotLoaded() && !game::MenuActive())
         game::MenuStartUpRequested() = 1;  // same request the game makes in CGame::InitAfterFocusLoss
     // exclusive mode: RW's device-lost path already releases/reacquires the audio device
     if (g_cfg.muteOnFocusLoss && s_mode != Exclusive && !s_muted) {
@@ -573,9 +573,13 @@ void Install() {
     {  // video mode selection + window style per mode
         PatchGroup g("window: video mode / window style");
         g.Expect(At(game::psSelectDevice), "53 56 55 31 DB 83 EC 10 83 3D [782EF4] 00");
+        // SetWindowLongA(hwnd, GWL_STYLE, WS_POPUP); SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x27). The Japanese executable
+        // swaps the two registers that load the window.
         g.Expect(At(game::WinMain_RestyleWindow),
-                 "8B 15 [9B38FC] 8B 02 68 00 00 00 80 6A F0 50 FF 15 [6F1508] "
-                 "8B 0D [9B38FC] 8B 01 6A 27 6A 00 6A 00 6A 00 6A 00 6A 00 50 FF 15 [6F150C]");
+                 ver::Is(ver::JP) ? "8B 0D [9B38FC] 8B 01 68 00 00 00 80 6A F0 50 FF 15 [6F1508] "
+                                    "8B 15 [9B38FC] 8B 02 6A 27 6A 00 6A 00 6A 00 6A 00 6A 00 50 FF 15 [6F150C]"
+                                  : "8B 15 [9B38FC] 8B 02 68 00 00 00 80 6A F0 50 FF 15 [6F1508] "
+                                    "8B 0D [9B38FC] 8B 01 6A 27 6A 00 6A 00 6A 00 6A 00 6A 00 50 FF 15 [6F150C]");
         if (g.Ok()) {
             mem::Jmp(At(game::psSelectDevice), (void*)&SelectDevice);
             mem::Call(At(game::WinMain_RestyleWindow), (void*)&ApplyWindowMode);
@@ -595,8 +599,11 @@ void Install() {
     }
     {  // Audio Setup provider row: 0xFD and 0xFF have their own text, any other index goes to Get3DProviderName
         PatchGroup g("window: audio setup provider name");
-        g.Expect(At(0x49ECF0), "8A 45 26 3C FD 0F 84 <49EDCE> 3C FF 0F 84 <49ED92> "
-                           "B9 [A0FB94] 50 E8 <5F98B0> 8D B4 24 90 00 00 00 56 50 E8 <5523F0>");
+        g.Expect(At(0x49ECF0), "8A 45 26 3C FD 0F 84 <49EDCE> 3C FF 0F 84 <49ED92> B9 [A0FB94] 50 E8 <5F98B0>");
+        // then AsciiToUnicode(name, buffer on the stack). The Japanese executable's frame is smaller, so this is found
+        // from the call.
+        g.Expect(At(0x49ED09) + 5,
+                 ver::Is(ver::JP) ? "8D 74 24 78 56 50 E8 <5523F0>" : "8D B4 24 90 00 00 00 56 50 E8 <5523F0>");
         g.Expect(At(game::DMAudio_Get3DProviderName), "83 EC 08 8B 44 24 0C 50 89 4C 24 08 B9 [78C720]");
         if (g.Ok()) mem::Call(At(0x49ED09), (void*)&Get3DProviderName);
     }

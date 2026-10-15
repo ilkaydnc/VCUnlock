@@ -10,12 +10,12 @@ The game still runs at 30 Hz underneath, so nothing breaks.
 
 ### [Download VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip)
 
-<sub>Steam and retail 1.0 · Windows 10 and 11 · one DLL, no game files changed</sub>
+<sub>Steam, retail 1.0 and Japanese · Windows 10 and 11 · one DLL, no game files changed</sub>
 
 </div>
 
 > [!NOTE]
-> VCUnlock is an unofficial fan project. It needs your own copy of GTA Vice City, from Steam or the retail 1.0 release, and contains no game code or files. It is not affiliated with Rockstar Games or Take-Two Interactive.
+> VCUnlock is an unofficial fan project. It needs your own copy of GTA Vice City, from Steam, the retail 1.0 release or the Japanese release, and contains no game code or files. It is not affiliated with Rockstar Games or Take-Two Interactive.
 
 <!-- video -->
 
@@ -169,12 +169,12 @@ Also checked:
 - Draw distance stress test with a sniper zoom: 480 of 16,384 list entries and 75 MB of streaming memory used.
 - 7 of 7 alt-tabs in exclusive fullscreen worked.
 - The 30 Hz world and the draw distance code run against a copy of the Steam executable in offline tests.
-- On retail 1.0 every change goes in, the same as on Steam, and the world keeps 30 updates a second.
+- On retail 1.0 and the Japanese release every change goes in, the same as on Steam, and the world keeps 30 updates a second.
 - With SilentPatch (Build 12.1 and its DDraw component) and Ultimate ASI Loader 9.7.4, in either load order, every VCUnlock change went in and the world kept 30 updates a second.
 
 ## Install
 
-You need GTA Vice City from Steam, or the retail CD version 1.0. Other versions, such as retail 1.1, the Japanese release, the Rockstar Games Launcher and the Definitive Edition, are not supported. VCUnlock leaves them untouched.
+You need GTA Vice City from Steam, the retail CD version 1.0 or the Japanese release. Other versions, such as retail 1.1, the Rockstar Games Launcher and the Definitive Edition, are not supported. VCUnlock leaves them untouched.
 
 To open the game folder on Steam, right-click the game and choose **Manage** → **Browse local files**. The retail game is in the folder you installed it to. Then follow the way that fits your folder.
 
