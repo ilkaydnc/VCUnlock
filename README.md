@@ -10,9 +10,17 @@ The game still runs at 30 Hz underneath, so nothing breaks.
 
 ### [Download VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip)
 
-<sub>Steam, retail 1.0 and Japanese · Windows 10 and 11 · one DLL, no game files changed</sub>
-
 </div>
+
+## Compatibility
+
+| Game | Version | Status | Download |
+|---|---|---|---|
+| GTA Vice City | Steam | Supported | [VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip) |
+| GTA Vice City | Retail 1.0 | Supported | [VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip) |
+| GTA Vice City | Japanese | Supported | [VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip) |
+| GTA III | | In progress | |
+| GTA San Andreas | | In progress | |
 
 > [!NOTE]
 > VCUnlock is an unofficial fan project. It needs your own copy of GTA Vice City, from Steam, the retail 1.0 release or the Japanese release, and contains no game code or files. It is not affiliated with Rockstar Games or Take-Two Interactive.
