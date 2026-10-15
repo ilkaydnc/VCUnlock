@@ -17,7 +17,7 @@
 //   Shared by every module:
 //
 //   - Log keeps timestamped lines in memory; LogToFile writes them to VCUnlock.log and keeps writing there.
-//   - Config mirrors VCUnlock.ini in the game's user folder; LoadConfig writes a commented default file on the first
+//   - Config mirrors VCUnlock.ini next to VCUnlock.asi; LoadConfig writes a commented default file on the first
 //     run and SaveConfig stores what the menus change.
 //   - mem:: is the byte-level layer: pattern match, protected writes, jmp/call, import and vtable hooks.
 //   - PatchGroup checks every byte a feature relies on before anything is written, so a feature is applied whole or not
@@ -68,8 +68,7 @@ struct Config {
 extern Config g_cfg;
 void LoadConfig(HMODULE self);
 void SaveConfig();               // writes the settings the game menus change
-extern char g_dir[MAX_PATH];      // directory of the DLL (game dir), with trailing backslash
-extern char g_userDir[MAX_PATH];  // the game's user files folder (gta_vc.set), with trailing backslash
+extern char g_dir[MAX_PATH];     // folder of VCUnlock.asi, with trailing backslash
 
 // ---------------------------------------------------------------------------------------------------------------------
 //  MEMORY PATCHING

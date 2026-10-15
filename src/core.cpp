@@ -18,9 +18,9 @@
 //   goes to a file only after a crash, a failed byte check or with Log=1; from then on every line is flushed, so it
 //   survives a crash.
 //
-//   The settings live next to gta_vc.set, in the folder the game itself uses (Documents\GTA Vice City User Files). An
-//   older VCUnlock.ini in the game folder is taken over once and deleted with the old log. A file from version 1.1.2 or
-//   older, which also held the window and wide screen settings, is written anew with the settings that remain.
+//   The settings and the log live next to VCUnlock.asi. Versions up to 1.1.2 kept them in the game's user folder
+//   (Documents\GTA Vice City User Files): on the first run that VCUnlock.ini is taken over with the settings that
+//   remain, and it is deleted with its log.
 //
 //   mem::Match runs under SEH: checking an unmapped address fails the check instead of crashing the game.
 //
@@ -46,7 +46,6 @@
 
 Config g_cfg;
 char g_dir[MAX_PATH];
-char g_userDir[MAX_PATH];
 
 // ---------------------------------------------------------------------------------------------------------------------
 //  LOG
@@ -119,7 +118,7 @@ void LogToFile() {
     EnterCriticalSection(&s_logCs);
     if (!s_log) {
         char p[MAX_PATH];
-        strcpy_s(p, g_userDir[0] ? g_userDir : g_dir);
+        strcpy_s(p, g_dir);
         strcat_s(p, "VCUnlock.log");
         s_log = _fsopen(p, "w", _SH_DENYWR);
         if (s_log) {
@@ -164,21 +163,20 @@ static const char kDefaultIni[] =
     "; 1 = write VCUnlock.log, with frame rate statistics every 5 seconds\r\n"
     "Log=0\r\n";
 
-// The folder the game keeps gta_vc.set in, found the way the game finds it.
-static void FindUserDir() {
+// The folder the game keeps gta_vc.set in, found the way the game finds it, with a trailing backslash. Versions up to
+// 1.1.2 kept VCUnlock.ini and VCUnlock.log there.
+static bool FindUserDir(char* dir) {
     char p[MAX_PATH] = {};
     DWORD n = sizeof p - 32, type = 0;
     HKEY k;
     if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders", 0,
                       KEY_READ, &k) != ERROR_SUCCESS)
-        return;
+        return false;
     LONG r = RegQueryValueExA(k, "Personal", nullptr, &type, (BYTE*)p, &n);
     RegCloseKey(k);
-    if (r != ERROR_SUCCESS || type != REG_SZ || !p[0]) return;
-    strcat_s(p, "\\GTA Vice City User Files");
-    CreateDirectoryA(p, nullptr);
-    DWORD a = GetFileAttributesA(p);
-    if (a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY)) sprintf_s(g_userDir, "%s\\", p);
+    if (r != ERROR_SUCCESS || type != REG_SZ || !p[0]) return false;
+    sprintf_s(dir, MAX_PATH, "%s\\GTA Vice City User Files\\", p);
+    return true;
 }
 
 static void IniPath(char* p, const char* dir) {
@@ -222,24 +220,24 @@ static bool OldIni(const char* p) {
 
 void SaveConfig() {
     char p[MAX_PATH];
-    IniPath(p, g_userDir[0] ? g_userDir : g_dir);
+    IniPath(p, g_dir);
     WriteConfig(p, false);
 }
 
 void LoadConfig(HMODULE self) {
     GetModuleFileNameA(self, g_dir, MAX_PATH);
     if (char* s = strrchr(g_dir, '\\')) s[1] = 0;
-    FindUserDir();
-    char p[MAX_PATH], old[MAX_PATH];
-    IniPath(p, g_userDir[0] ? g_userDir : g_dir);
-    IniPath(old, g_dir);
-    // older versions kept the file (and the log) in the game folder
-    bool migrate = g_userDir[0] && GetFileAttributesA(old) != INVALID_FILE_ATTRIBUTES;
-    if (GetFileAttributesA(p) == INVALID_FILE_ATTRIBUTES) {
+    char p[MAX_PATH], userDir[MAX_PATH], old[MAX_PATH];
+    IniPath(p, g_dir);
+    bool fresh = GetFileAttributesA(p) == INVALID_FILE_ATTRIBUTES, migrate = false;
+    if (fresh && FindUserDir(userDir)) {  // the first run takes over the file of an older version
+        IniPath(old, userDir);
+        migrate = GetFileAttributesA(old) != INVALID_FILE_ATTRIBUTES;
+    }
+    if (fresh) {
         WriteDefaultIni(p, CREATE_NEW);
         if (migrate) {
             ReadConfig(old);
-            g_cfg.showFps = IniInt(old, "HUD", "ShowFPS", g_cfg.showFps);
             WriteConfig(p, true);
         }
     } else if (OldIni(p)) {  // written anew, so it lists no setting that does nothing now
@@ -248,9 +246,9 @@ void LoadConfig(HMODULE self) {
         WriteConfig(p, true);
     }
     ReadConfig(p);
-    if (migrate) {
+    if (migrate && GetFileAttributesA(p) != INVALID_FILE_ATTRIBUTES) {  // deleted only once the settings are kept
         DeleteFileA(old);
-        strcpy_s(old, g_dir);
+        strcpy_s(old, userDir);
         strcat_s(old, "VCUnlock.log");
         DeleteFileA(old);
     }

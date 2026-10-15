@@ -155,7 +155,7 @@ Both are in **Options** → **Display Setup**:
   </tr>
 </table>
 
-Settings are saved in `Documents\GTA Vice City User Files\VCUnlock.ini`, which has a few extra options:
+Settings are saved in `VCUnlock.ini`, next to `VCUnlock.asi`, which has a few extra options:
 
 | Key | Default | What it does |
 |---|---|---|
@@ -163,7 +163,7 @@ Settings are saved in `Documents\GTA Vice City User Files\VCUnlock.ini`, which h
 | `FPSLimit` | `0` | Any frame rate cap, also one that isn't in the menu |
 | `Log` | `0` | Write `VCUnlock.log` |
 
-Older versions also had wide screen, window, draw distance and audio options. They were removed so that VCUnlock works next to other mods for those. A `VCUnlock.ini` from an older version is rewritten with the settings above, and the ones you changed are kept.
+Older versions also had wide screen, window, draw distance and audio options. They were removed so that VCUnlock works next to other mods for those. Older versions kept `VCUnlock.ini` in `Documents\GTA Vice City User Files`. The first start moves it next to `VCUnlock.asi` with the settings above, and the ones you changed are kept.
 
 ## Troubleshooting
 

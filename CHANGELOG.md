@@ -8,6 +8,10 @@
 
 - Retail 1.0 and the Japanese release are supported, next to Steam.
 
+### Fixed
+
+- `VCUnlock.ini` and `VCUnlock.log` are created next to `VCUnlock.asi`, like other mods do, instead of in `Documents\GTA Vice City User Files`. The first start moves your old `VCUnlock.ini` there and keeps the settings you changed.
+
 ### Install
 
 VCUnlock is now an `.asi` plugin, like most GTA mods, so it needs an ASI loader such as [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases/latest). If you have an older VCUnlock `dinput8.dll`, replace it with the loader's `dinput8.dll` and put `VCUnlock.asi` into the game folder.
@@ -21,5 +25,3 @@ VCUnlock now does one thing: it fixes the frame rate. Everything else was remove
 - Draw distance up to 540 m.
 
 If you used these, install a mod made for them next to VCUnlock.
-
-Your `VCUnlock.ini` is rewritten with the settings that are left, and the ones you changed are kept.
