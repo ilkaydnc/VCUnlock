@@ -310,6 +310,11 @@ struct LookHistory {
     bool lock = false, lockBoth = false;  // the target ped's heading follows the camera (mode 4)
 } s_look;
 
+// The recoil kick the running tick added to the active CCam's yaw and pitch (FireM16_1stPerson), not mouse input.
+struct LookKick {
+    double beta = 0, alpha = 0;
+} s_kick;
+
 Slot* s_lookPed = nullptr;
 float s_lookPedYaw = 0;
 uint32_t s_mouseTurns = 0;
@@ -700,9 +705,20 @@ bool AlphaReturn() {
 
 float Heading(Vec v) { return std::atan2(-v.x, v.y); }
 
+// FireM16_1stPerson: fadd [Cams[ActiveCam].Beta / Alpha] with the random kick in st(0). The world runs before the
+// camera, so the camera adds the mouse on top of the kick and clamps the pitch after both.
+void __cdecl KickBeta(fix::Regs*, fix::Fpu* f) {
+    if (s_inTick) s_kick.beta += f->Get(0);
+}
+void __cdecl KickAlpha(fix::Regs*, fix::Fpu* f) {
+    if (s_inTick) s_kick.alpha += f->Get(0);
+}
+
 void CaptureLook(bool reset) {
     LookHistory& l = s_look;
     uint8_t* cam = ActiveCam();
+    float kickB = (float)s_kick.beta, kickA = (float)s_kick.alpha;
+    s_kick = LookKick{};
     if (!s_mouseLayout || !cam) {
         l = LookHistory{};
         return;
@@ -718,12 +734,14 @@ void CaptureLook(bool reset) {
     if (continuous && m.valid) {
         float x = *(float*)At(kMouseX), y = *(float*)At(kMouseY), scale = m.fov * 0.0125f;
         if ((x != 0 || y != 0) && (mode != 4 || !*(uint16_t*)At(kPadDisable))) {
-            float dB = WrapPi(beta - l.beta), predB = *(float*)At(kMouseH) * m.kx * x * scale;
+            // The kick stays in the tick's blend; only the mouse part is drawn ahead.
+            float dB = WrapPi(beta - l.beta - kickB), predB = *(float*)At(kMouseH) * m.kx * x * scale;
             bool match = std::fabs(dB - predB) < 1e-4f;
             if (match) l.yaw = dB;
             if (x != 0) l.yawBlocked = !match;
             float predA = MouseV() * 4 * y * scale;
-            if (std::fabs(alpha - std::clamp(l.alpha + predA, m.lo, m.hi)) < 1e-4f) l.pitch = alpha - l.alpha;
+            if (std::fabs(alpha - std::clamp(l.alpha + kickA + predA, m.lo, m.hi)) < 1e-4f)
+                l.pitch = alpha - l.alpha - kickA;
         }
     }
     // Mode 4 turns the player to the camera's heading at the end of each tick.
@@ -1732,6 +1750,10 @@ bool Install() {
     if (s_mouseLayout &&
         !fix::RetargetCall(At(0x4AD73D), At(0x5FEEF0), (void*)MouseStateHook, "fixed: mouse look input"))
         s_mouseLayout = false;
+    if (s_mouseLayout) {  // without these, a shot's tick draws its mouse turn late, like any other override
+        fix::Hook(At(0x5CC13D), 7, "D8 04 85 [7E38D4]", KickBeta, "fixed: recoil yaw");
+        fix::Hook(At(0x5CC173), 7, "D8 04 85 [7E38C4]", KickAlpha, "fixed: recoil pitch");
+    }
     if (s_particleLayout &&
         !(fix::Hook(At(0x564785), 5, "A3 [97F034]", ParticleAdded, "fixed: particle serials") &&
           fix::RetargetCall(At(0x4A6412), At(0x5607B0), (void*)ParticleRenderHook, "fixed: particle presentation")))
