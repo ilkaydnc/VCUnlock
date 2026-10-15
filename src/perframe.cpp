@@ -96,8 +96,25 @@ static void Thunk(uintptr_t at, size_t len, const char* pat, const char* what, B
     fix::Count(true);
 }
 
+// Executable code outside the game's own image: another mod's DLL or code it allocated
+static bool InModCode(uintptr_t a) {
+    uintptr_t base = (uintptr_t)GetModuleHandleA(nullptr);
+    auto nt = (const IMAGE_NT_HEADERS*)(base + ((const IMAGE_DOS_HEADER*)base)->e_lfanew);
+    if (a >= base && a < base + nt->OptionalHeader.SizeOfImage) return false;
+    MEMORY_BASIC_INFORMATION mbi;
+    if (!VirtualQuery((void*)a, &mbi, sizeof mbi) || mbi.State != MEM_COMMIT) return false;
+    return (mbi.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY)) != 0;
+}
+
 // Calls `target` only on frames with a world tick; other frames return 0 (`argBytes` popped by the callee).
+// If another mod loaded first and pointed the call at its own replacement (GInput does for the radio key), the
+// replacement is gated the same way. Any other target in the game's image is unknown code and stays unpatched.
 static void GateCall(uintptr_t at, uintptr_t target, const char* what, uint16_t argBytes = 0) {
+    if (*(const uint8_t*)at == 0xE8 && mem::RelTarget(at) != target && InModCode(mem::RelTarget(at))) {
+        Log("fix [%s] call at %08X goes to another mod's code at %08X instead of %08X; gating that", what,
+            (unsigned)at, (unsigned)mem::RelTarget(at), (unsigned)target);
+        target = mem::RelTarget(at);
+    }
     static uintptr_t s_target;  // read by the builder below (single-threaded install)
     static uint16_t s_args;
     s_target = target;
