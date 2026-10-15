@@ -45,17 +45,6 @@ void Count(bool ok) { ++(ok ? s_applied : s_failed); }
 //  OPERAND PATCHES
 // ---------------------------------------------------------------------------------------------------------------------
 
-static size_t PatternLen(const char* p) {
-    size_t n = 0;
-    while (*p) {
-        while (*p == ' ') ++p;
-        if (!*p) break;
-        while (*p && *p != ' ') ++p;
-        ++n;
-    }
-    return n;
-}
-
 static bool Check(uintptr_t insn, const char* pattern, const char* what) {
     if (mem::Match(insn, pattern)) return true;
     char have[64] = {};
@@ -68,7 +57,7 @@ static bool Check(uintptr_t insn, const char* pattern, const char* what) {
 
 bool Redirect(uintptr_t insn, const char* pattern, uintptr_t oldAddr, const void* newAddr, const char* what) {
     if (!Check(insn, pattern, what)) return false;
-    size_t n = PatternLen(pattern);
+    size_t n = mem::PatternSize(pattern);
     for (size_t i = 1; i + 4 <= n; ++i) {
         if (*(uint32_t*)(insn + i) == (uint32_t)oldAddr) {
             mem::Put<uint32_t>(insn + i, (uint32_t)(uintptr_t)newAddr);

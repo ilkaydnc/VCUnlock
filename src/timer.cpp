@@ -36,7 +36,6 @@
 #include "game.h"
 #include "timer.h"
 #include "render.h"
-#include "modules.h"
 #include "fixed.h"
 #include <intrin.h>
 #include <cmath>
@@ -125,14 +124,14 @@ static void RefreshFixes() {
 // One world tick: the game clocks advance by exactly 1/30 s (the ms clocks keep the fraction).
 void FixedTick() {
     using namespace game;
-    PrevTimeInMs = TimeInMs;
+    PrevTimeInMs() = TimeInMs();
     s_accMain += 1000.0 / 30.0;
     uint32_t elapsed = (uint32_t)(s_accMain + 1e-9);
     s_accMain -= elapsed;
-    TimeInMs += elapsed;
-    TimeInMsNonClipped += elapsed;
-    TimeStep = TimeStepNonClipped = ts30;
-    ++FrameCounter;
+    TimeInMs() += elapsed;
+    TimeInMsNonClipped() += elapsed;
+    TimeStep() = TimeStepNonClipped() = ts30;
+    ++FrameCounter();
     logicalPassed = 1;
     k = 1.0f;
     RefreshFixes();
@@ -140,7 +139,7 @@ void FixedTick() {
 
 void FixedRender(uint32_t ticks) {
     // Code that runs once per drawn frame sees the time step of this frame's ticks (0 without a tick).
-    game::TimeStep = game::TimeStepNonClipped = ts30 * ticks;
+    game::TimeStep() = game::TimeStepNonClipped() = ts30 * ticks;
     k = (float)ticks;
     logicalPassed = ticks;
     RefreshFixes();
@@ -177,9 +176,6 @@ static double FrameCap() {
 
 static void Pace() {
     double cap = FrameCap();
-    int bg = window::BackgroundFps();
-    if (bg > 0 && (cap <= 0 || cap > bg)) cap = bg;
-    if (cap <= 0) return;
     double period = 1.0 / cap;
     double target = s_lastFrame + period;
     double now = Now();
@@ -203,21 +199,21 @@ static void Stats(double rawMs) {
     double now = Now();
     if (s_statT0 == 0) {
         s_statT0 = now;
-        s_statGame0 = game::TimeInMs;
+        s_statGame0 = game::TimeInMs();
         return;
     }
     ++s_statFrames;
     if (rawMs < s_statMin) s_statMin = rawMs;
     if (rawMs > s_statMax) s_statMax = rawMs;
-    s_statTs += game::TimeStep;
+    s_statTs += game::TimeStep();
     if (now - s_statT0 >= 5.0) {
         double sec = now - s_statT0;
-        uint32_t gameMs = game::TimeInMs - s_statGame0;
+        uint32_t gameMs = game::TimeInMs() - s_statGame0;
         Log("stats: %.1f fps  frame min %.2f max %.2f ms  avg ts %.4f  game clock %.4fx real  state %d menu %d  "
             "presents %.1f/s avg %.3f ms  interval %08X",
             s_statFrames / sec, s_statMin, s_statMax, s_statFrames ? s_statTs / s_statFrames : 0.0,
-            gameMs / (sec * 1000.0), game::GameState, game::MenuActive, render::g_presents / sec,
-            render::g_presents ? render::g_presentTime * 1000.0 / render::g_presents : 0.0, *(uint32_t*)0xA0ED3C);
+            gameMs / (sec * 1000.0), game::GameState(), game::MenuActive(), render::g_presents / sec,
+            render::g_presents ? render::g_presentTime * 1000.0 / render::g_presents : 0.0, *(uint32_t*)At(0xA0ED3C));
         render::g_presents = 0;
         render::g_presentTime = 0;
         s_statT0 = now;
@@ -225,7 +221,7 @@ static void Stats(double rawMs) {
         s_statMin = 1e9;
         s_statMax = 0;
         s_statTs = 0;
-        s_statGame0 = game::TimeInMs;
+        s_statGame0 = game::TimeInMs();
     }
 }
 
@@ -235,34 +231,31 @@ static void Stats(double rawMs) {
 
 static void __cdecl Update() {
     uintptr_t ret = (uintptr_t)_ReturnAddress();
-    if (ret == game::Idle_CallTimerUpdate_Ret || ret == game::FrontendIdle_CallTimerUpdate_Ret) {
-        Pace();
-        window::Tick();
-    }
+    if (ret == At(game::Idle_CallTimerUpdate_Ret) || ret == At(game::FrontendIdle_CallTimerUpdate_Ret)) Pace();
 
     using namespace game;
-    PrevTimeInMs = TimeInMs;
+    PrevTimeInMs() = TimeInMs();
 
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
     // honour _oldPerfCounter adjustments made by CTimer::Resume/Initialise (low part only, like the original)
-    uint32_t cycles = (now.LowPart - OldPerfCounterLo) & 0x7FFFFFFF;
-    OldPerfCounterLo = now.LowPart;
-    OldPerfCounterHi = (uint32_t)now.HighPart;
+    uint32_t cycles = (now.LowPart - OldPerfCounterLo()) & 0x7FFFFFFF;
+    OldPerfCounterLo() = now.LowPart;
+    OldPerfCounterHi() = (uint32_t)now.HighPart;
 
-    bool paused = UserPause || CodePause;
+    bool paused = UserPause() || CodePause();
     double rawMs = cycles / s_cyclesPerMs;
-    double ft = paused ? rawMs : rawMs * TimeScale;
+    double ft = paused ? rawMs : rawMs * TimeScale();
 
     // pause-mode clock (advances while paused too)
     s_accPause += ft;
     uint32_t dp = (uint32_t)s_accPause;
     s_accPause -= dp;
-    TimeInMsPauseMode += dp;
+    TimeInMsPauseMode() += dp;
 
-    if (ret == game::Idle_CallTimerUpdate_Ret) {
+    if (ret == At(game::Idle_CallTimerUpdate_Ret)) {
         // Drawn frame: the fixed world takes the real time; the game clock advances in FixedTick only.
-        bool stopped = paused || MenuActive || MenuGameNotLoaded || GameState != 9;
+        bool stopped = paused || MenuActive() || MenuGameNotLoaded() || !Playing();
         fixed::FrameDelta(paused ? 0.0 : ft);
         kFrame = stopped ? 0.0f : (float)(ft / (1000.0 / 30.0));
         for (int i = 0; i < s_onDrawnN; ++i) s_onDrawn[i]();
@@ -280,31 +273,31 @@ static void __cdecl Update() {
     }
 
     if (paused) {
-        TimeStep = 0.0f;
+        TimeStep() = 0.0f;
     } else {
         s_accMain += ft;
         uint32_t d = (uint32_t)s_accMain;
         s_accMain -= d;
-        TimeInMs += d;
-        TimeInMsNonClipped += d;
-        TimeStep = (float)(ft * 0.05);
+        TimeInMs() += d;
+        TimeInMsNonClipped() += d;
+        TimeStep() = (float)(ft * 0.05);
     }
-    if (TimeStep < 0.01f && !paused && !SnapShotActive) TimeStep = 0.01f;
-    TimeStepNonClipped = TimeStep;
-    if (RecordForGameState != 2) {  // not playing back a recording
-        if (TimeStep > 3.0f) TimeStep = 3.0f;
-        if (TimeInMs - PrevTimeInMs > 60) {
-            TimeInMs = PrevTimeInMs + 60;
+    if (TimeStep() < 0.01f && !paused && !SnapShotActive()) TimeStep() = 0.01f;
+    TimeStepNonClipped() = TimeStep();
+    if (RecordForGameState() != 2) {  // not playing back a recording
+        if (TimeStep() > 3.0f) TimeStep() = 3.0f;
+        if (TimeInMs() - PrevTimeInMs() > 60) {
+            TimeInMs() = PrevTimeInMs() + 60;
             s_accMain = 0;
         }
     }
-    if (RecordForChaseStatus == 1) {
-        TimeStep = 1.0f;
-        TimeInMs = PrevTimeInMs + 16;
+    if (RecordForChaseStatus() == 1) {
+        TimeStep() = 1.0f;
+        TimeInMs() = PrevTimeInMs() + 16;
     }
-    ++FrameCounter;
+    ++FrameCounter();
 
-    k = paused ? 0.0f : TimeStep * 0.6f;
+    k = paused ? 0.0f : TimeStep() * 0.6f;
     kFrame = k;
     logicalPassed = RealTimeLogical(rawMs);
     RefreshFixes();
@@ -317,8 +310,8 @@ static void __cdecl Update() {
 
 bool Verify() {
     PatchGroup g("timer: CTimer::Update and the WinMain limiter");
-    g.Expect(game::CTimer_Update, "55 A1 34 3B 97 00 89 E5 A3 94 7D 97 00 A1 18 00 69 00")
-        .Expect(game::WinMain_LimiterCheck, "80 3D 5D 86 86 00 00 74 1C DB 05 F4 38 9B 00 D8 3D 9C 4E 6D 00");
+    g.Expect(At(game::CTimer_Update), "55 A1 [973B34] 89 E5 A3 [977D94] A1 [690018]")
+        .Expect(At(game::WinMain_LimiterCheck), "80 3D [86865D] 00 74 1C DB 05 [9B38F4] D8 3D [6D4E9C]");
     return g.Ok();
 }
 
@@ -329,9 +322,11 @@ void Install() {
     s_waitTimer = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
     if (!s_waitTimer) s_waitTimer = CreateWaitableTimerExW(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
     s_lastFrame = Now();
-    mem::Jmp(game::CTimer_Update, (void*)&Update);
-    // Old limiter in WinMain: always run the frame (pacing happens in Update)
-    uint8_t jmp[2] = {0xEB, uint8_t(game::WinMain_RunFrame - (game::WinMain_LimiterCheck + 2))};
-    mem::Write(game::WinMain_LimiterCheck, jmp, 2);
+    mem::Jmp(At(game::CTimer_Update), (void*)&Update);
+    // Old limiter in WinMain: always run the frame (pacing happens in Update). The distance is inside the checked
+    // code (its jz reaches WinMain_RunFrame too), so it is the same in every version.
+    constexpr uint8_t kToRunFrame = uint8_t(game::WinMain_RunFrame - (game::WinMain_LimiterCheck + 2));
+    uint8_t jmp[2] = {0xEB, kToRunFrame};
+    mem::Write(At(game::WinMain_LimiterCheck), jmp, 2);
 }
 }  // namespace timer

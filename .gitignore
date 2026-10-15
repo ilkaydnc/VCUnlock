@@ -1,12 +1,14 @@
-# Only the DLL source, build script, README, licence and CI are tracked. Everything else in this folder
+# Only the DLL source, build script, README, changelog, licence, mod guides and CI are tracked. Everything else in this folder
 # (notes, analysis, game binaries, tests/harness, tools, build output) stays local.
 /*
 !/.gitignore
 !/.gitattributes
 !/README.md
+!/CHANGELOG.md
 !/LICENSE
 !/build.bat
 !/.github/
+!/mods/
 !/src/
 
 /src/*
@@ -14,3 +16,4 @@
 !/src/*.h
 !/src/*.inc
 !/src/*.def
+!/src/versions/

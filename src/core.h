@@ -17,7 +17,7 @@
 //   Shared by every module:
 //
 //   - Log keeps timestamped lines in memory; LogToFile writes them to VCUnlock.log and keeps writing there.
-//   - Config mirrors VCUnlock.ini in the game's user folder; LoadConfig writes a commented default file on the first
+//   - Config mirrors VCUnlock.ini next to VCUnlock.asi; LoadConfig writes a commented default file on the first
 //     run and SaveConfig stores what the menus change.
 //   - mem:: is the byte-level layer: pattern match, protected writes, jmp/call, import and vtable hooks.
 //   - PatchGroup checks every byte a feature relies on before anything is written, so a feature is applied whole or not
@@ -38,6 +38,7 @@
 #include <windows.h>
 #include <cstdint>
 #include <cstddef>
+#include "version.h"
 
 // ---------------------------------------------------------------------------------------------------------------------
 //  LOG
@@ -56,17 +57,10 @@ void LogToFile();
 // VCUnlock.ini. The defaults match the file LoadConfig writes on the first run.
 struct Config {
     // [Display]
-    int windowMode = 1;         // 0 exclusive fullscreen, 1 borderless, 2 windowed
-    int width = 0, height = 0;  // 0 = desktop
-    int refreshRate = 0;        // exclusive only, 0 = highest available
+    int refreshRate = 0;  // exclusive fullscreen only, 0 = highest available
     int vsync = 1;
     int fpsLimit = 0;  // 0 = unlimited (used when vsync off, or as an extra cap)
-    int widescreen = 1;
     int showFps = 0;
-    // [Window]
-    int pauseOnFocusLoss = 1;
-    int muteOnFocusLoss = 1;
-    int skipIntro = 0;
     // [Debug]
     int log = 0;
 };
@@ -74,16 +68,17 @@ struct Config {
 extern Config g_cfg;
 void LoadConfig(HMODULE self);
 void SaveConfig();               // writes the settings the game menus change
-extern char g_dir[MAX_PATH];      // directory of the DLL (game dir), with trailing backslash
-extern char g_userDir[MAX_PATH];  // the game's user files folder (gta_vc.set), with trailing backslash
+extern char g_dir[MAX_PATH];     // folder of VCUnlock.asi, with trailing backslash
 
 // ---------------------------------------------------------------------------------------------------------------------
 //  MEMORY PATCHING
 // ---------------------------------------------------------------------------------------------------------------------
 
 namespace mem {
-// pattern: "55 A1 ?? 3B" (hex bytes, ?? = wildcard)
+// pattern: "55 A1 ?? 3B" (hex bytes, ?? = wildcard); "[973B34]" is the 4-byte address At(0x973B34) and "<4D0CB0>" a
+// rel32 field that reaches At(0x4D0CB0) (see version.h)
 bool Match(uintptr_t addr, const char* pattern);
+size_t PatternSize(const char* pattern);  // bytes the pattern covers
 void Write(uintptr_t addr, const void* data, size_t n);
 template <class T> inline void Put(uintptr_t addr, T v) { Write(addr, &v, sizeof(T)); }
 void Nop(uintptr_t addr, size_t n);

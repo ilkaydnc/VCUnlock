@@ -15,7 +15,7 @@
 // ---------------------------------------------------------------------------------------------------------------------
 //
 //   Import hooks go in at DllMain time, code patches after SteamStub has decrypted .text. The present counters feed the
-//   stats line in timer.cpp; ApplyVsync and RefreshRates serve the Display Setup rows.
+//   stats line in timer.cpp; ApplyVsync serves the Frame Limiter row.
 //
 // ---------------------------------------------------------------------------------------------------------------------
 //
@@ -30,8 +30,6 @@
 #include <windows.h>
 #include <cstdint>
 
-struct D3DPRESENT_PARAMETERS8;
-
 namespace render {
 extern int g_refresh;         // display refresh rate in Hz
 extern uint32_t g_presents;   // Present calls since the last stats line
@@ -39,7 +37,5 @@ extern double g_presentTime;  // seconds spent in Present since the last stats l
 
 void InstallEarly(HMODULE exe);  // import hooks (DllMain time)
 void Install();                  // code patches (after SteamStub decrypted .text)
-void OnDeviceCreated(void* device, D3DPRESENT_PARAMETERS8* pp);  // after a successful CreateDevice
-void ApplyVsync();                                               // after g_cfg.vsync changed
-int RefreshRates(int w, int h, int* out, int max);               // 32-bit modes of WxH, ascending
+void ApplyVsync();               // after g_cfg.vsync changed
 }  // namespace render

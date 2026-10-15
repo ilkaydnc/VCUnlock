@@ -48,7 +48,8 @@ using namespace fixedmath;
 // ---------------------------------------------------------------------------------------------------------------------
 
 template <class T> T& Field(void* p, size_t offset) { return *(T*)((uint8_t*)p + offset); }
-uint8_t* At(uintptr_t base, int i, size_t stride) { return (uint8_t*)base + i * stride; }
+// element i of the game array at Steam address base
+uint8_t* Item(uintptr_t base, int i, size_t stride) { return (uint8_t*)At(base) + i * stride; }
 float Dist2(Vec a, Vec b) {
     Vec d = a - b;
     return Dot(d, d);
@@ -85,7 +86,7 @@ MarkerTrack s_markers[kNumMarkers];
 
 void MarkersBeforeTick() {
     for (int i = 0; i < kNumMarkers; i++) {
-        uint8_t* m = At(kMarkers, i, kMarkerStride);
+        uint8_t* m = Item(kMarkers, i, kMarkerStride);
         MarkerTrack& t = s_markers[i];
         // As if a drawn frame had consumed it: the tick's PlaceMarker finds it by identifier again.
         if (t.tick && Field<uint32_t>(m, 0x54) == t.id) Field<uint8_t>(m, 0x52) = 0;
@@ -96,7 +97,7 @@ void MarkersBeforeTick() {
 
 void MarkersAfterTick() {
     for (int i = 0; i < kNumMarkers; i++) {
-        uint8_t* m = At(kMarkers, i, kMarkerStride);
+        uint8_t* m = Item(kMarkers, i, kMarkerStride);
         MarkerTrack& t = s_markers[i];
         t.tick = Field<uint8_t>(m, 0x52) && !t.pre;
         t.id = Field<uint32_t>(m, 0x54);
@@ -105,7 +106,7 @@ void MarkersAfterTick() {
 
 void MarkersRearm() {
     for (int i = 0; i < kNumMarkers; i++) {
-        uint8_t* m = At(kMarkers, i, kMarkerStride);
+        uint8_t* m = Item(kMarkers, i, kMarkerStride);
         MarkerTrack& t = s_markers[i];
         if (t.tick && Field<uint32_t>(m, 0x54) == t.id && Field<void*>(m, 0x48)) Field<uint8_t>(m, 0x52) = 1;
     }
@@ -128,7 +129,7 @@ TimeShift s_times[32];
 int s_numTimes = 0;
 
 void ShiftTime(uint32_t* field, bool nonZero) {
-    uint32_t now = game::TimeInMs, created = *field, lag = now - *s_clock;
+    uint32_t now = game::TimeInMs(), created = *field, lag = now - *s_clock;
     if (!lag || created > now) return;
     uint32_t shifted = (uint32_t)std::min<uint64_t>(now, (uint64_t)created + lag);
     if (shifted == created || (nonZero && !shifted)) return;
@@ -140,9 +141,9 @@ void ShiftTimes() {
     s_numTimes = 0;
     if (!s_timesOk) return;
     for (int i = 0; i < 16; i++) {
-        uint8_t* t = At(kTraces, i, 0x2C);
+        uint8_t* t = Item(kTraces, i, 0x2C);
         if (Field<uint8_t>(t, 0x18)) ShiftTime(&Field<uint32_t>(t, 0x1C), false);
-        uint8_t* m = At(kMoney, i, 0x3C);
+        uint8_t* m = Item(kMoney, i, 0x3C);
         if (Field<uint32_t>(m, 0)) ShiftTime(&Field<uint32_t>(m, 0), true);
     }
 }
@@ -154,7 +155,7 @@ void RestoreTimes() {
     s_numTimes = 0;
 }
 
-auto SpecialFxRender = (void(__cdecl*)())0x574680;
+constexpr GameFn<void(__cdecl*)()> SpecialFxRender{0x574680};
 void __cdecl SpecialFxRenderHook() {
     bool active = s_drawing;
     if (active) {
@@ -228,7 +229,7 @@ bool SameSheet(const Sheet& a, const Sheet& b) {
 void ShiftSheets() {
     for (int i = 0; i < kNumSheets; i++) {
         SheetTrack& t = s_sheets[i];
-        uint8_t* p = At(kSheets, i, kSheetStride);
+        uint8_t* p = Item(kSheets, i, kSheetStride);
         if (!t.h.Both() || !t.h.prev.state || !t.h.cur.state || !SameSheet(ReadSheet(p), t.h.cur)) continue;
         const Sheet &a = t.h.prev, &b = t.h.cur;
         if (!Finite(a.pos) || !Finite(b.pos) || Dist2(a.pos, b.pos) > 25.0f || !std::isfinite(a.angle) ||
@@ -248,7 +249,7 @@ void ShiftSheets() {
 void RestoreSheets() {
     for (int i = 0; i < kNumSheets; i++) {
         SheetTrack& t = s_sheets[i];
-        uint8_t* p = At(kSheets, i, kSheetStride);
+        uint8_t* p = Item(kSheets, i, kSheetStride);
         if (t.shifted) {
             Field<Vec>(p, t.offset) = t.backupPos;
             Field<float>(p, 0x34) = t.backupAngle;
@@ -257,7 +258,7 @@ void RestoreSheets() {
     }
 }
 
-auto RubbishRender = (void(__cdecl*)())0x567E10;
+constexpr GameFn<void(__cdecl*)()> RubbishRender{0x567E10};
 void __cdecl RubbishRenderHook() {
     bool active = s_drawing && s_rubbishOk;
     if (active) ShiftSheets();
@@ -299,7 +300,7 @@ Pane ReadPane(uint8_t* p) {
 void ShiftPanes() {
     for (int i = 0; i < kNumPanes; i++) {
         PaneTrack& t = s_panes[i];
-        uint8_t* p = At(kPanes, i, kPaneStride);
+        uint8_t* p = Item(kPanes, i, kPaneStride);
         if (!t.h.Both()) continue;
         const Pane &a = t.h.prev, &b = t.h.cur;
         Pane now = ReadPane(p);
@@ -321,12 +322,12 @@ void ShiftPanes() {
 void RestorePanes() {
     for (int i = 0; i < kNumPanes; i++)
         if (s_panes[i].shifted) {
-            Field<Matrix>(At(kPanes, i, kPaneStride), 0) = s_panes[i].backup;
+            Field<Matrix>(Item(kPanes, i, kPaneStride), 0) = s_panes[i].backup;
             s_panes[i].shifted = false;
         }
 }
 
-auto GlassRender = (void(__cdecl*)())0x555CC0;
+constexpr GameFn<void(__cdecl*)()> GlassRender{0x555CC0};
 void __cdecl GlassRenderHook() {
     bool active = s_drawing && s_glassOk;
     if (active) ShiftPanes();
@@ -375,7 +376,7 @@ bool SameCannon(const Cannon& a, const Cannon& b) {
 void ShiftCannons() {
     for (int i = 0; i < kNumCannons; i++) {
         CannonTrack& t = s_cannons[i];
-        uint8_t* p = At(kCannons, i, kCannonStride);
+        uint8_t* p = Item(kCannons, i, kCannonStride);
         if (!t.h.Both()) continue;
         const Cannon &a = t.h.prev, &b = t.h.cur;
         if (!b.id || a.id != b.id || a.cur < 0 || a.cur > 15 || b.cur < 0 || b.cur > 15 ||
@@ -406,13 +407,13 @@ void ShiftCannons() {
 void RestoreCannons() {
     for (int i = 0; i < kNumCannons; i++)
         if (s_cannons[i].shifted) {
-            memcpy(At(kCannons, i, kCannonStride) + 0xC, s_cannons[i].backup, sizeof s_cannons[i].backup);
+            memcpy(Item(kCannons, i, kCannonStride) + 0xC, s_cannons[i].backup, sizeof s_cannons[i].backup);
             s_cannons[i].shifted = false;
         }
 }
 
 // The jet's texture offset is a rand() per drawn frame; it is rolled on drawn frames with a tick only.
-auto Rand = (int(__cdecl*)())0x6489A0;
+constexpr GameFn<int(__cdecl*)()> Rand{0x6489A0};
 int s_cannonRand[kNumCannons];
 int s_cannonRands = 0, s_cannonCalls = 0;
 bool s_cannonRoll = true;
@@ -429,7 +430,7 @@ int __cdecl CannonRandHook() {
     return v;
 }
 
-auto CannonsRender = (void(__cdecl*)())0x57AFD0;
+constexpr GameFn<void(__cdecl*)()> CannonsRender{0x57AFD0};
 void __cdecl CannonsRenderHook() {
     bool active = s_drawing && s_cannonsOk;
     if (active) ShiftCannons();
@@ -482,7 +483,7 @@ bool BlendPoints(const Vec* a, const Vec* b, Vec* out, int n, float limit) {
 void ShiftRopes() {
     for (int i = 0; i < kNumRopes; i++) {
         RopeTrack& t = s_ropes[i];
-        uint8_t* p = At(kRopes, i, kRopeStride);
+        uint8_t* p = Item(kRopes, i, kRopeStride);
         if (!t.h.Both()) continue;
         const Rope &a = t.h.prev, &b = t.h.cur;
         Rope now = ReadRope(p);
@@ -500,12 +501,12 @@ void ShiftRopes() {
 void RestoreRopes() {
     for (int i = 0; i < kNumRopes; i++)
         if (s_ropes[i].shifted) {
-            memcpy(At(kRopes, i, kRopeStride) + 0xC, s_ropes[i].backup, sizeof s_ropes[i].backup);
+            memcpy(Item(kRopes, i, kRopeStride) + 0xC, s_ropes[i].backup, sizeof s_ropes[i].backup);
             s_ropes[i].shifted = false;
         }
 }
 
-auto RopesRender = (void(__cdecl*)())0x632C80;
+constexpr GameFn<void(__cdecl*)()> RopesRender{0x632C80};
 void __cdecl RopesRenderHook() {
     bool active = s_drawing && s_ropesOk;
     if (active) ShiftRopes();
@@ -532,8 +533,8 @@ bool s_bannerShifted[kNumBanners], s_trailShifted[kNumTrails];
 
 Fluff ReadFluff() {
     Fluff f;
-    memcpy(f.banner, (void*)kBanners, sizeof f.banner);
-    for (int i = 0; i < kNumTrails; i++) f.trail[i] = Field<Vec>(At(kTrails, i, 0x100), 0);
+    memcpy(f.banner, (void*)At(kBanners), sizeof f.banner);
+    for (int i = 0; i < kNumTrails; i++) f.trail[i] = Field<Vec>(Item(kTrails, i, 0x100), 0);
     return f;
 }
 
@@ -542,7 +543,7 @@ void ShiftFluff() {
     const Fluff &a = s_fluff.prev, &b = s_fluff.cur;
     Fluff now = ReadFluff();
     for (int i = 0; i < kNumBanners; i++) {
-        Vec* p = (Vec*)At(kBanners, i, 0x60);
+        Vec* p = (Vec*)Item(kBanners, i, 0x60);
         if (a.banner[i][0].z <= -50 || b.banner[i][0].z <= -50 || !Same(now.banner[i], b.banner[i], sizeof b.banner[i]))
             continue;
         Vec drawn[8];
@@ -556,7 +557,7 @@ void ShiftFluff() {
         if (!Same(&now.trail[i], &b.trail[i], sizeof(Vec)) || !BlendPoints(&a.trail[i], &b.trail[i], &drawn, 1, 30.0f))
             continue;
         s_fluffBackup.trail[i] = b.trail[i];
-        Field<Vec>(At(kTrails, i, 0x100), 0) = drawn;
+        Field<Vec>(Item(kTrails, i, 0x100), 0) = drawn;
         s_trailShifted[i] = true;
     }
 }
@@ -564,17 +565,17 @@ void ShiftFluff() {
 void RestoreFluff() {
     for (int i = 0; i < kNumBanners; i++)
         if (s_bannerShifted[i]) {
-            memcpy(At(kBanners, i, 0x60), s_fluffBackup.banner[i], sizeof s_fluffBackup.banner[i]);
+            memcpy(Item(kBanners, i, 0x60), s_fluffBackup.banner[i], sizeof s_fluffBackup.banner[i]);
             s_bannerShifted[i] = false;
         }
     for (int i = 0; i < kNumTrails; i++)
         if (s_trailShifted[i]) {
-            Field<Vec>(At(kTrails, i, 0x100), 0) = s_fluffBackup.trail[i];
+            Field<Vec>(Item(kTrails, i, 0x100), 0) = s_fluffBackup.trail[i];
             s_trailShifted[i] = false;
         }
 }
 
-auto MovingThingsRender = (void(__cdecl*)())0x54F140;
+constexpr GameFn<void(__cdecl*)()> MovingThingsRender{0x54F140};
 void __cdecl MovingThingsRenderHook() {
     bool active = s_drawing && s_fluffOk;
     if (active) ShiftFluff();
@@ -596,14 +597,14 @@ constexpr size_t kCoronaStride = 0x68;
 
 void HoldCoronaHistory() {
     for (int i = 0; i < kNumCoronas; i++) {
-        uint8_t* c = At(kCoronas, i, kCoronaStride);
+        uint8_t* c = Item(kCoronas, i, kCoronaStride);
         memmove(c + 0x36, c + 0x38, 10);
         memmove(c + 0x42, c + 0x44, 10);
         for (size_t off : {0x4E, 0x54, 0x5A, 0x60}) memmove(c + off, c + off + 1, 5);
     }
 }
 
-auto CoronasRender = (void(__cdecl*)())0x5433F0;
+constexpr GameFn<void(__cdecl*)()> CoronasRender{0x5433F0};
 void __cdecl CoronasRenderHook() {
     if (s_drawing && s_coronasOk && !s_frameTicks) HoldCoronaHistory();
     CoronasRender();
@@ -617,7 +618,7 @@ void __cdecl CoronasRenderHook() {
 // 0xA0C000, coronas 1 and 2) and stores its screen position (0x9B38D4/0x9B38D0) for the clouds.
 constexpr uintptr_t kSunDirections = 0x791C78, kTimeCycleSlot = 0xA0C000, kSunDistance = 0x6948A0;
 constexpr uintptr_t kSunScreenX = 0x9B38D4, kSunScreenY = 0x9B38D0, kCameraPos = 0x7E36C0;
-auto CalcScreenCoors = (bool(__cdecl*)(const Vec*, Vec*, float*, float*, bool))0x5777A0;
+constexpr GameFn<bool(__cdecl*)(const Vec*, Vec*, float*, float*, bool)> CalcScreenCoors{0x5777A0};
 struct SunShift {
     Vec* coors;
     Vec original, shifted;
@@ -629,10 +630,10 @@ float s_sunScreen[2];
 bool s_sunScreenSaved = false;
 
 bool SunAt(Vec camera, Vec& sun) {
-    int slot = *(int32_t*)kTimeCycleSlot;
+    int slot = *(int32_t*)At(kTimeCycleSlot);
     if (slot < 0 || slot >= 64) return false;
-    Vec d = *(Vec*)(kSunDirections + 12 * slot);
-    float k = *(float*)kSunDistance;
+    Vec d = *(Vec*)(At(kSunDirections) + 12 * slot);
+    float k = *(float*)At(kSunDistance);
     float x = d.x * k, y = d.y * k, z = d.z * k;  // the game's rounding order
     sun = {x + camera.x, y + camera.y, z + camera.z};
     return Finite(sun);
@@ -642,7 +643,7 @@ void PresentSun(Vec camera) {
     Vec tickSun, drawSun;
     if (!SunAt(s_tickCamera, tickSun) || !SunAt(camera, drawSun) || Same(&tickSun, &drawSun, sizeof drawSun)) return;
     for (int i = 0; i < kNumCoronas && s_numSunShift < 2; i++) {
-        uint8_t* c = At(kCoronas, i, kCoronaStride);
+        uint8_t* c = Item(kCoronas, i, kCoronaStride);
         uint32_t id = Field<uint32_t>(c, 0xC);
         Vec& coors = Field<Vec>(c, 0);
         if ((id == 1 || id == 2) && Dist2(coors, tickSun) < 1e-4f) {
@@ -650,15 +651,15 @@ void PresentSun(Vec camera) {
             coors = drawSun;
         }
     }
-    s_sunScreen[0] = *(float*)kSunScreenX;
-    s_sunScreen[1] = *(float*)kSunScreenY;
+    s_sunScreen[0] = *(float*)At(kSunScreenX);
+    s_sunScreen[1] = *(float*)At(kSunScreenY);
     s_sunScreenSaved = true;
     Vec screen;
     float w, h;
     if (CalcScreenCoors(&drawSun, &screen, &w, &h, true)) {
-        *(float*)kSunScreenX = screen.x;
-        *(float*)kSunScreenY = screen.y;
-    } else *(float*)kSunScreenX = *(float*)kSunScreenY = 1000000.0f;
+        *(float*)At(kSunScreenX) = screen.x;
+        *(float*)At(kSunScreenY) = screen.y;
+    } else *(float*)At(kSunScreenX) = *(float*)At(kSunScreenY) = 1000000.0f;
 }
 
 void RestoreSun() {
@@ -667,8 +668,8 @@ void RestoreSun() {
             *s_sunShift[i].coors = s_sunShift[i].original;
     s_numSunShift = 0;
     if (s_sunScreenSaved) {
-        *(float*)kSunScreenX = s_sunScreen[0];
-        *(float*)kSunScreenY = s_sunScreen[1];
+        *(float*)At(kSunScreenX) = s_sunScreen[0];
+        *(float*)At(kSunScreenY) = s_sunScreen[1];
         s_sunScreenSaved = false;
     }
 }
@@ -684,16 +685,16 @@ void RestoreSun() {
 constexpr uintptr_t kMovingThings = 0x7D2860, kNumMovingThings = 0xA0F944;
 constexpr int kMaxMovingThings = 48;
 constexpr size_t kMovingStride = 0x1C;
-auto MovingThingUpdate = (void(__fastcall*)(void*, void*))0x54EB40;
+constexpr GameFn<void(__fastcall*)(void*, void*)> MovingThingUpdate{0x54EB40};
 uint8_t s_reposed[kMaxMovingThings];
 int s_numReposed = 0;
 
 void ReposeBuildings() {
     s_numReposed = 0;
-    if (*s_clock == game::TimeInMs) return;
-    int n = std::min<int>(*(uint16_t*)kNumMovingThings, kMaxMovingThings);
+    if (*s_clock == game::TimeInMs()) return;
+    int n = std::min<int>(*(uint16_t*)At(kNumMovingThings), kMaxMovingThings);
     for (int i = 0; i < n; i++) {
-        uint8_t* t = At(kMovingThings, i, kMovingStride);
+        uint8_t* t = Item(kMovingThings, i, kMovingStride);
         if (Field<uint16_t>(t, 0xA) || !Field<void*>(t, 0x18)) continue;
         MovingThingUpdate(t, nullptr);
         s_reposed[s_numReposed++] = (uint8_t)i;
@@ -703,7 +704,7 @@ void ReposeBuildings() {
 void RestoreBuildings() {
     // Runs with the clock back at TimeInMs, which is when the world tick posed them.
     for (int k = 0; k < s_numReposed; k++) {
-        uint8_t* t = At(kMovingThings, s_reposed[k], kMovingStride);
+        uint8_t* t = Item(kMovingThings, s_reposed[k], kMovingStride);
         if (Field<void*>(t, 0x18)) MovingThingUpdate(t, nullptr);
     }
     s_numReposed = 0;
@@ -716,7 +717,7 @@ void RestoreBuildings() {
 // CSkidmarks::Update ends every mark PreRender did not continue since the last update, and CAntennas::Update
 // frees antennas not registered since then; both registrations happen once per drawn frame. With several ticks
 // per drawn frame (below 30 fps) only the first tick updates them.
-auto SkidmarksUpdate = (void(__cdecl*)())0x56FDF0, AntennasUpdate = (void(__cdecl*)())0x53EF70;
+constexpr GameFn<void(__cdecl*)()> SkidmarksUpdate{0x56FDF0}, AntennasUpdate{0x53EF70};
 void __cdecl SkidmarksUpdateHook() {
     if (!s_ticking || !s_tickIndex) SkidmarksUpdate();
 }
@@ -732,13 +733,13 @@ void __cdecl AntennasUpdateHook() {
 // After every tick: the state the next drawn frames blend towards.
 void CaptureAll() {
     if (s_rubbishOk)
-        for (int i = 0; i < kNumSheets; i++) s_sheets[i].h.Push(ReadSheet(At(kSheets, i, kSheetStride)));
+        for (int i = 0; i < kNumSheets; i++) s_sheets[i].h.Push(ReadSheet(Item(kSheets, i, kSheetStride)));
     if (s_glassOk)
-        for (int i = 0; i < kNumPanes; i++) s_panes[i].h.Push(ReadPane(At(kPanes, i, kPaneStride)));
+        for (int i = 0; i < kNumPanes; i++) s_panes[i].h.Push(ReadPane(Item(kPanes, i, kPaneStride)));
     if (s_cannonsOk)
-        for (int i = 0; i < kNumCannons; i++) s_cannons[i].h.Push(ReadCannon(At(kCannons, i, kCannonStride)));
+        for (int i = 0; i < kNumCannons; i++) s_cannons[i].h.Push(ReadCannon(Item(kCannons, i, kCannonStride)));
     if (s_ropesOk)
-        for (int i = 0; i < kNumRopes; i++) s_ropes[i].h.Push(ReadRope(At(kRopes, i, kRopeStride)));
+        for (int i = 0; i < kNumRopes; i++) s_ropes[i].h.Push(ReadRope(Item(kRopes, i, kRopeStride)));
     if (s_fluffOk) s_fluff.Push(ReadFluff());
 }
 }  // namespace
@@ -751,158 +752,161 @@ void Install(const uint32_t* presentationClock) {
     s_clock = presentationClock;
 
     PatchGroup m("fixed: 3D marker layout");
-    m.Expect(0x5746BC, "E8 CF C3 FF FF")                             // CSpecialFX::Render -> C3dMarkers::Render
-        .Expect(0x570AA4, "BD 20 30 81 00")                          //   32 markers at 0x813020
-        .Expect(0x570AB0, "80 7D 52 00")                             //   used +0x52
-        .Expect(0x570B35, "C6 45 52 00")                             //   drawn: used = 0
+    m.Expect(At(0x5746BC), "E8 <570A90>")                            // CSpecialFX::Render -> C3dMarkers::Render
+        .Expect(At(0x570AA4), "BD [813020]")                         //   32 markers at 0x813020
+        .Expect(At(0x570AB0), "80 7D 52 00")                         //   used +0x52
+        .Expect(At(0x570B35), "C6 45 52 00")                         //   drawn: used = 0
         // unused with an atomic (+0x48): deleted
-        .Expect(0x570B41, "83 7D 48 00 74 37 C7 45 54 00 00 00 00 C7 45 60 00 00 00 00")
-        .Expect(0x570B7F, "83 C5 78 83 FB 20 0F 8C 25 FF FF FF 5D")
-        .Expect(0x5702A7, "80 BF 72 30 81 00 00 75 20 8B 44 24 5C")  // PlaceMarker: reuse if !used
-        .Expect(0x5702B4, "3B 87 74 30 81 00");                      //   and the identifier +0x54 matches
+        .Expect(At(0x570B41), "83 7D 48 00 74 37 C7 45 54 00 00 00 00 C7 45 60 00 00 00 00")
+        .Expect(At(0x570B7F), "83 C5 78 83 FB 20 0F 8C <570AB0> 5D")
+        .Expect(At(0x5702A7), "80 BF [813072] 00 75 20 8B 44 24 5C")  // PlaceMarker: reuse if !used
+        .Expect(At(0x5702B4), "3B 87 [813074]");                      //   and the identifier +0x54 matches
     s_markersOk = m.Ok();
 
     PatchGroup t("fixed: trace and money message layout");
-    t.Expect(0x572904, "80 BD F0 08 81 00 00 0F 84 9C 0E 00 00")        // trace in use +0x18
+    t.Expect(At(0x572904), "80 BD [8108F0] 00 0F 84 <5737AD>")        // trace in use +0x18
         // age = TimeInMs - created +0x1C
-        .Expect(0x572942, "8B 1D 34 3B 97 00 8B 85 F8 08 81 00 2B 9D F4 08 81 00")
-        .Expect(0x5737B1, "83 C5 2C 83 7C 24 10 10 0F 8C 45 F1 FF FF")  //   16 x 0x2C
-        .Expect(0x5746A0, "83 BD 70 F1 80 00 00")                       // money message registered +0 at 0x80F170
-        .Expect(0x5746B1, "83 C5 3C 83 C6 3C 83 FB 10 7C E4")           //   16 x 0x3C
-        .Expect(0x570F50, "8B 15 34 3B 97 00 53 89 CB 83 EC 38 2B 13 81 FA D0 07 00 00");
+        .Expect(At(0x572942), "8B 1D [973B34] 8B 85 [8108F8] 2B 9D [8108F4]")
+        .Expect(At(0x5737B1), "83 C5 2C 83 7C 24 10 10 0F 8C <572904>")  //   16 x 0x2C
+        .Expect(At(0x5746A0), "83 BD [80F170] 00")                       // money message registered +0 at 0x80F170
+        .Expect(At(0x5746B1), "83 C5 3C 83 C6 3C 83 FB 10 7C E4")        //   16 x 0x3C
+        .Expect(At(0x570F50), "8B 15 [973B34] 53 89 CB 83 EC 38 2B 13 81 FA D0 07 00 00");
     s_timesOk = t.Ok();
 
     PatchGroup r("fixed: rubbish layout");
-    r.Expect(0x567EC4, "6B DB 44 40")
-        .Expect(0x567ED5, "81 C3 00 83 7F 00")                                       // sheets 0x44 at 0x7F8300
-        .Expect(0x567EE7, "8A 43 1C 84 C0 0F 84 A5 04 00 00")
-        .Expect(0x567EF2, "3C 01 BD 64 00 00 00")                                    //   state +0x1C
-        .Expect(0x567EFB, "D9 03 DD DB D9 43 04 DD DA")
-        .Expect(0x567F20, "D9 43 0C")                                                //   lying: +0, moving: +0xC
-        .Expect(0x5687B0, "D9 05 F8 7C 69 00 D8 0D 2C 44 97 00 D8 46 34 D9 5E 34");  // spin: angle +0x34
+    r.Expect(At(0x567EC4), "6B DB 44 40")
+        .Expect(At(0x567ED5), "81 C3 [7F8300]")                                      // sheets 0x44 at 0x7F8300
+        .Expect(At(0x567EE7), "8A 43 1C 84 C0 0F 84 <568397>")
+        .Expect(At(0x567EF2), "3C 01 BD 64 00 00 00")                                //   state +0x1C
+        .Expect(At(0x567EFB), "D9 03 DD DB D9 43 04 DD DA")
+        .Expect(At(0x567F20), "D9 43 0C")                                            //   lying: +0, moving: +0xC
+        .Expect(At(0x5687B0), "D9 05 [697CF8] D8 0D [97442C] D8 46 34 D9 5E 34");    // spin: angle +0x34
     s_rubbishOk = r.Ok();
 
     PatchGroup gl("fixed: falling glass layout");
-    gl.Expect(0x555D6B, "BE 10 87 7D 00")
-        .Expect(0x555D72, "80 BD 7D 87 7D 00 00")                        // 45 x 0x70, active +0x6D
-        .Expect(0x555D83, "83 C5 70 83 C6 70 83 FB 2D 7C E4 31 DB")
-        .Expect(0x555F85, "8B 3D 34 3B 97 00 83 EC 78 8B 43 60 39 C7");  // start time +0x60
+    gl.Expect(At(0x555D6B), "BE [7D8710]")
+        .Expect(At(0x555D72), "80 BD [7D877D] 00")                        // 45 x 0x70, active +0x6D
+        .Expect(At(0x555D83), "83 C5 70 83 C6 70 83 FB 2D 7C E4 31 DB")
+        .Expect(At(0x555F85), "8B 3D [973B34] 83 EC 78 8B 43 60 39 C7");  // start time +0x60
     s_glassOk = gl.Ok();
 
     PatchGroup c("fixed: water cannon layout");
-    c.Expect(0x57AFD7, "BE 54 E3 97 00")
-        .Expect(0x57AFE0, "83 BD 54 E3 97 00 00")                                // 3 x 0x19C, id +0
-        .Expect(0x57AFF1, "81 C5 9C 01 00 00")
-        .Expect(0x57B091, "0F BF B8 58 E3 97 00")                                // newest point +4
-        .Expect(0x57B770, "0F BF 47 04")
-        .Expect(0x57B79B, "80 BC 37 8C 01 00 00 00 0F 84 BE 02 00 00 0F BF EB")  // used +0x18C
-        .Expect(0x57B7F6, "D9 44 07 0C D8 64 0F 0C")                             // points +0xC
-        .Expect(0x57B739, "E8 62 D2 0C 00");                                     // rand()
+    c.Expect(At(0x57AFD7), "BE [97E354]")
+        .Expect(At(0x57AFE0), "83 BD [97E354] 00")                                // 3 x 0x19C, id +0
+        .Expect(At(0x57AFF1), "81 C5 9C 01 00 00")
+        .Expect(At(0x57B091), "0F BF B8 [97E358]")                                // newest point +4
+        .Expect(At(0x57B770), "0F BF 47 04")
+        .Expect(At(0x57B79B), "80 BC 37 8C 01 00 00 00 0F 84 <57BA67> 0F BF EB")  // used +0x18C
+        .Expect(At(0x57B7F6), "D9 44 07 0C D8 64 0F 0C")                          // points +0xC
+        .Expect(At(0x57B739), "E8 <6489A0>");                                     // rand()
     s_cannonsOk = c.Ok();
 
     PatchGroup ro("fixed: rope layout");
-    ro.Expect(0x632C87, "BE 20 59 93 00")
-        .Expect(0x632C90, "80 BD 20 59 93 00 00")                                    // 8 x 0x30C, active +0
-        .Expect(0x632CA1, "81 C5 0C 03 00 00")
-        .Expect(0x632CAD, "83 FB 08 7C DE 5D")
-        .Expect(0x6328ED, "3B 82 24 59 93 00")                                       // id +4
-        .Expect(0x6322D8, "D9 83 D0 00 00 00 D9 83 D4 00 00 00 D9 83 CC 00 00 00");  // point 16 (+0xC + 16 x 12)
+    ro.Expect(At(0x632C87), "BE [935920]")
+        .Expect(At(0x632C90), "80 BD [935920] 00")                                    // 8 x 0x30C, active +0
+        .Expect(At(0x632CA1), "81 C5 0C 03 00 00")
+        .Expect(At(0x632CAD), "83 FB 08 7C DE 5D")
+        .Expect(At(0x6328ED), "3B 82 [935924]")                                          // id +4
+        .Expect(At(0x6322D8), "D9 83 D0 00 00 00 D9 83 D4 00 00 00 D9 83 CC 00 00 00");  // point 16 (+0xC + 16 x 12)
     s_ropesOk = ro.Ok();
 
     PatchGroup f("fixed: plane banner and trail layout");
-    f.Expect(0x54F29A, "BD A8 35 93 00 DE D9 89 E9 FF 74 24 04")
-        .Expect(0x54F2AD, "81 C5 00 01 00 00 83 FB 06 7C E9")         // trails 6 x 0x100
-        .Expect(0x54F2D5, "BD C8 33 93 00")
-        .Expect(0x54F2E8, "83 C5 60 83 FB 05")                        // banners 5 x 0x60
-        .Expect(0x54C4F4, "6B C0 60 D9 44 24 04 D9 98 C8 33 93 00");  // point 0 = the plane
+    f.Expect(At(0x54F29A), "BD [9335A8] DE D9 89 E9 FF 74 24 04")
+        .Expect(At(0x54F2AD), "81 C5 00 01 00 00 83 FB 06 7C E9")      // trails 6 x 0x100
+        .Expect(At(0x54F2D5), "BD [9333C8]")
+        .Expect(At(0x54F2E8), "83 C5 60 83 FB 05")                     // banners 5 x 0x60
+        .Expect(At(0x54C4F4), "6B C0 60 D9 44 24 04 D9 98 [9333C8]");  // point 0 = the plane
     s_fluffOk = f.Ok();
 
     PatchGroup co("fixed: corona history layout");
-    co.Expect(0x5434A7, "66 8B 04 45 64 41 81 00")
-        .Expect(0x5434B4, "66 89 04 55 66 41 81 00 8B 44 24 04")                          // x +0x36
-        .Expect(0x5434C5, "66 8B 04 45 70 41 81 00")
-        .Expect(0x5434CD, "66 89 04 55 72 41 81 00 8D 04 39 8A 80 7D 41 81 00 8D 2C 3E")  // y +0x42
-        .Expect(0x5434E1, "88 85 7E 41 81 00")
-        .Expect(0x5434F3, "88 85 84 41 81 00")                                            // r +0x4E, g +0x54
-        .Expect(0x543505, "88 85 8A 41 81 00")
-        .Expect(0x543526, "88 85 90 41 81 00")                                            // b +0x5A, valid +0x60
-        .Expect(0x543493, "C7 44 24 18 05 00 00 00 83 44 24 04 05 83 C2 05")
-        .Expect(0x543532, "C6 87 90 41 81 00 00");
+    co.Expect(At(0x5434A7), "66 8B 04 45 [814164]")
+        .Expect(At(0x5434B4), "66 89 04 55 [814166] 8B 44 24 04")                         // x +0x36
+        .Expect(At(0x5434C5), "66 8B 04 45 [814170]")
+        .Expect(At(0x5434CD), "66 89 04 55 [814172] 8D 04 39 8A 80 [81417D] 8D 2C 3E")    // y +0x42
+        .Expect(At(0x5434E1), "88 85 [81417E]")
+        .Expect(At(0x5434F3), "88 85 [814184]")                                           // r +0x4E, g +0x54
+        .Expect(At(0x543505), "88 85 [81418A]")
+        .Expect(At(0x543526), "88 85 [814190]")                                           // b +0x5A, valid +0x60
+        .Expect(At(0x543493), "C7 44 24 18 05 00 00 00 83 44 24 04 05 83 C2 05")
+        .Expect(At(0x543532), "C6 87 [814190] 00");
     s_coronasOk = co.Ok();
 
     PatchGroup su("fixed: sun layout");
-    su.Expect(0x542100, "A1 00 C0 A0 00")
-        .Expect(0x542118, "8D B2 78 1C 79 00 B8 C0 36 7E 00 A5 A5 A5")
-        .Expect(0x54212A, "D8 0D A0 48 69 00")
-        .Expect(0x542154, "D8 00")
-        .Expect(0x5421F2, "6A 01 E8 87 01 00 00")
-        .Expect(0x542270, "6A 02 E8 09 01 00 00")  // coronas 1, 2
-        .Expect(0x542290, "E8 0B 55 03 00")
-        .Expect(0x5422A0, "D9 1D D4 38 9B 00")
-        .Expect(0x5422AA, "D9 1D D0 38 9B 00")
-        .Expect(0x5425B1, "89 B1 3C 41 81 00")
-        .Expect(0x5425E2, "D9 99 30 41 81 00");    // corona id +0xC, coors +0
-    s_sunOk = su.Ok() && *(float*)kSunDistance == 150.0f;
+    su.Expect(At(0x542100), "A1 [A0C000]")
+        .Expect(At(0x542118), "8D B2 [791C78] B8 [7E36C0] A5 A5 A5")
+        .Expect(At(0x54212A), "D8 0D [6948A0]")
+        .Expect(At(0x542154), "D8 00")
+        .Expect(At(0x5421F2), "6A 01 E8 <542380>")
+        .Expect(At(0x542270), "6A 02 E8 <542380>")  // coronas 1, 2
+        .Expect(At(0x542290), "E8 <5777A0>")
+        .Expect(At(0x5422A0), "D9 1D [9B38D4]")
+        .Expect(At(0x5422AA), "D9 1D [9B38D0]")
+        .Expect(At(0x5425B1), "89 B1 [81413C]")
+        .Expect(At(0x5425E2), "D9 99 [814130]");    // corona id +0xC, coors +0
+    s_sunOk = su.Ok() && *(float*)At(kSunDistance) == 150.0f;
 
     PatchGroup mv("fixed: moving building layout");
-    mv.Expect(0x54F3B0, "66 83 BD 6A 28 7D 00 00 75 07 89 F1 E8 7F F7 FF FF")  // close ones updated every tick
-        .Expect(0x54F3C1, "83 C6 1C 83 C5 1C 43")
-        .Expect(0x54F3C8, "0F B7 15 44 F9 A0 00")
-        .Expect(0x54EB48, "0F B7 43 08")
-        .Expect(0x54F02F, "8B 4B 18 83 C1 04 E8 76 07 F9 FF")
-        .Expect(0x54F07E, "66 83 7B 0A 01");
+    mv.Expect(At(0x54F3B0), "66 83 BD [7D286A] 00 75 07 89 F1 E8 <54EB40>")  // close ones updated every tick
+        .Expect(At(0x54F3C1), "83 C6 1C 83 C5 1C 43")
+        .Expect(At(0x54F3C8), "0F B7 15 [A0F944]")
+        .Expect(At(0x54EB48), "0F B7 43 08")
+        .Expect(At(0x54F02F), "8B 4B 18 83 C1 04 E8 <4DF7B0>")
+        .Expect(At(0x54F07E), "66 83 7B 0A 01");
     s_movingOk = mv.Ok();
 
     PatchGroup sk("fixed: skidmark and antenna updates");
-    sk.Expect(0x4A4397, "E8 54 BA 0C 00 E8 CF AB 09 00");
+    sk.Expect(At(0x4A4397), "E8 <56FDF0> E8 <53EF70>");
     bool skidOk = sk.Ok();
 
     // Render-path wrappers: each target has this single caller.
-    bool hooked = fix::RetargetCall(0x4A63EA, 0x574680, (void*)SpecialFxRenderHook, "fixed: markers and effect clocks");
+    bool hooked =
+        fix::RetargetCall(At(0x4A63EA), At(0x574680), (void*)SpecialFxRenderHook, "fixed: markers and effect clocks");
     if (!hooked) s_markersOk = s_timesOk = false;
-    if (s_rubbishOk && !fix::RetargetCall(0x4A6408, 0x567E10, (void*)RubbishRenderHook, "fixed: rubbish presentation"))
+    if (s_rubbishOk &&
+        !fix::RetargetCall(At(0x4A6408), At(0x567E10), (void*)RubbishRenderHook, "fixed: rubbish presentation"))
         s_rubbishOk = false;
-    if (s_glassOk && !fix::RetargetCall(0x4A63E0, 0x555CC0, (void*)GlassRenderHook, "fixed: glass presentation"))
+    if (s_glassOk &&
+        !fix::RetargetCall(At(0x4A63E0), At(0x555CC0), (void*)GlassRenderHook, "fixed: glass presentation"))
         s_glassOk = false;
     if (s_cannonsOk &&
-        !(fix::RetargetCall(0x4A63E5, 0x57AFD0, (void*)CannonsRenderHook, "fixed: water cannon presentation") &&
-          fix::RetargetCall(0x57B739, 0x6489A0, (void*)CannonRandHook, "fixed: water cannon texture roll")))
+        !(fix::RetargetCall(At(0x4A63E5), At(0x57AFD0), (void*)CannonsRenderHook, "fixed: water cannon presentation") &&
+          fix::RetargetCall(At(0x57B739), At(0x6489A0), (void*)CannonRandHook, "fixed: water cannon texture roll")))
         s_cannonsOk = false;
-    if (s_ropesOk && !fix::RetargetCall(0x4A63EF, 0x632C80, (void*)RopesRenderHook, "fixed: rope presentation"))
+    if (s_ropesOk && !fix::RetargetCall(At(0x4A63EF), At(0x632C80), (void*)RopesRenderHook, "fixed: rope presentation"))
         s_ropesOk = false;
-    if (s_fluffOk &&
-        !fix::RetargetCall(0x4A6426, 0x54F140, (void*)MovingThingsRenderHook, "fixed: plane banner presentation"))
+    if (s_fluffOk && !fix::RetargetCall(At(0x4A6426), At(0x54F140), (void*)MovingThingsRenderHook,
+                                        "fixed: plane banner presentation"))
         s_fluffOk = false;
-    if (s_coronasOk && !fix::RetargetCall(0x4A640D, 0x5433F0, (void*)CoronasRenderHook, "fixed: light streaks"))
+    if (s_coronasOk && !fix::RetargetCall(At(0x4A640D), At(0x5433F0), (void*)CoronasRenderHook, "fixed: light streaks"))
         s_coronasOk = false;
     if (skidOk) {
-        fix::RetargetCall(0x4A4397, 0x56FDF0, (void*)SkidmarksUpdateHook, "fixed: skidmark update");
-        fix::RetargetCall(0x4A439C, 0x53EF70, (void*)AntennasUpdateHook, "fixed: antenna update");
+        fix::RetargetCall(At(0x4A4397), At(0x56FDF0), (void*)SkidmarksUpdateHook, "fixed: skidmark update");
+        fix::RetargetCall(At(0x4A439C), At(0x53EF70), (void*)AntennasUpdateHook, "fixed: antenna update");
     }
     // Clock reads that are pure functions of time (masked, or clamped as signed), or only run while drawing.
     static const struct {
         uintptr_t at;
         const char* pattern;
         const char* what;
-    } kClock[] = {{0x54EB63, "8B 35 34 3B 97 00", "fixed: lighthouse clock"},
-                  {0x54EDD4, "8B 15 34 3B 97 00", "fixed: radar clock"},
-                  {0x54EE8C, "8B 0D 34 3B 97 00", "fixed: fan clock"},
-                  {0x54EF44, "8B 3D 34 3B 97 00", "fixed: blimp clock"},
-                  {0x48796B, "03 0D 34 3B 97 00", "fixed: tree sway clock"},
-                  {0x4879BD, "03 15 34 3B 97 00", "fixed: tree sway clock"},
-                  {0x487A04, "8B 0D 34 3B 97 00", "fixed: tree sway clock"},
-                  {0x57BE9E, "8B 15 34 3B 97 00", "fixed: rain streak clock"},
-                  {0x57C212, "A1 34 3B 97 00", "fixed: rain streak start"},
-                  {0x555625, "8B 15 34 3B 97 00", "fixed: glass fade clock"},
-                  {0x5704DB, "8B 3D 34 3B 97 00", "fixed: marker pulse clock"}};
+    } kClock[] = {{0x54EB63, "8B 35 [973B34]", "fixed: lighthouse clock"},
+                  {0x54EDD4, "8B 15 [973B34]", "fixed: radar clock"},
+                  {0x54EE8C, "8B 0D [973B34]", "fixed: fan clock"},
+                  {0x54EF44, "8B 3D [973B34]", "fixed: blimp clock"},
+                  {0x48796B, "03 0D [973B34]", "fixed: tree sway clock"},
+                  {0x4879BD, "03 15 [973B34]", "fixed: tree sway clock"},
+                  {0x487A04, "8B 0D [973B34]", "fixed: tree sway clock"},
+                  {0x57BE9E, "8B 15 [973B34]", "fixed: rain streak clock"},
+                  {0x57C212, "A1 [973B34]", "fixed: rain streak start"},
+                  {0x555625, "8B 15 [973B34]", "fixed: glass fade clock"},
+                  {0x5704DB, "8B 3D [973B34]", "fixed: marker pulse clock"}};
     bool clocks = true;
     for (int i = 0; i < 4; i++)
-        clocks &= fix::Redirect(kClock[i].at, kClock[i].pattern, 0x973B34, s_clock, kClock[i].what);
+        clocks &= fix::Redirect(At(kClock[i].at), kClock[i].pattern, At(0x973B34), s_clock, kClock[i].what);
     if (!clocks) s_movingOk = false;
     for (size_t i = 4; i < sizeof kClock / sizeof kClock[0]; i++)
-        fix::Redirect(kClock[i].at, kClock[i].pattern, 0x973B34, s_clock, kClock[i].what);
-    s_markerStep = game::TimeStep;
-    fix::Redirect(0x570657, "D8 0D 2C 44 97 00", 0x97442C, &s_markerStep, "fixed: marker spin step");
+        fix::Redirect(At(kClock[i].at), kClock[i].pattern, At(0x973B34), s_clock, kClock[i].what);
+    s_markerStep = game::TimeStep();
+    fix::Redirect(At(0x570657), "D8 0D [97442C]", At(0x97442C), &s_markerStep, "fixed: marker spin step");
     s_installed = true;
 }
 
@@ -926,14 +930,14 @@ void BeforeTick(uint32_t index) {
     if (!s_installed) return;
     s_ticking = true;
     s_tickIndex = index;
-    s_markerStep = game::TimeStep;
+    s_markerStep = game::TimeStep();
     if (s_markersOk) MarkersBeforeTick();
 }
 
 void AfterTick() {
     if (!s_installed) return;
     s_ticking = false;
-    s_markerStep = game::TimeStep;
+    s_markerStep = game::TimeStep();
     if (s_markersOk) MarkersAfterTick();
     CaptureAll();
 }
@@ -944,7 +948,7 @@ void BeginDraw(float alpha, uint32_t frameTicks) {
     s_drawing = true;
     s_alpha = alpha;
     s_frameTicks = frameTicks;
-    s_tickCamera = *(Vec*)kCameraPos;
+    s_tickCamera = *(Vec*)At(kCameraPos);
     uint32_t clock = *s_clock;
     int32_t step = s_lastDrawValid ? (int32_t)(clock - s_lastDrawClock) : 0;
     s_markerStep = std::clamp((float)step * 0.05f, 0.0f, 10.0f);  // TimeStep is 1/50 s
@@ -963,7 +967,7 @@ void EndDraw() {
     if (!s_drawing) return;
     RestoreSun();
     RestoreBuildings();
-    s_markerStep = game::TimeStep;
+    s_markerStep = game::TimeStep();
     s_drawing = false;
 }
 

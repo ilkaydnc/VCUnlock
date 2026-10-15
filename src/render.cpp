@@ -23,7 +23,6 @@
 //     vertical blank itself (D3DKMT).
 //   - A Frame Limiter change applies at once: a windowed device swaps COPY and COPY_VSYNC through the game's own device
 //     reset, exclusive fullscreen switches the vertical blank wait.
-//   - The adapter's display modes are read once per device for the Screen Resolution list.
 //
 // ---------------------------------------------------------------------------------------------------------------------
 //
@@ -153,7 +152,7 @@ static void AdjustParams(void* d3d, UINT adapter, D3DPRESENT_PARAMETERS8* pp, co
         s_path = WindowedDiscard;
         g_refresh = DesktopRefresh();
     }
-    if (s_vblankSync) InitVBlank(pp->hDeviceWindow ? pp->hDeviceWindow : (HWND)game::RwD3D8Window);
+    if (s_vblankSync) InitVBlank(pp->hDeviceWindow ? pp->hDeviceWindow : (HWND)game::RwD3D8Window());
     timer::SetRefresh(g_refresh);
     Log("%s: %ux%u fmt %u windowed %d swap %u refresh %u interval %08X ms %u -> display %d Hz", who,
         pp->BackBufferWidth, pp->BackBufferHeight, pp->BackBufferFormat, pp->Windowed, pp->SwapEffect,
@@ -168,42 +167,7 @@ void ApplyVsync() {
         return;
     }
     s_vblankSync = g_cfg.vsync != 0;
-    if (s_vblankSync) InitVBlank((HWND)game::RwD3D8Window);
-}
-
-// The 32-bit display modes of the adapter, read once per device: EnumAdapterModes is slow (milliseconds a call).
-struct Mode { int w, h, hz; };
-static Mode s_modes[1024];
-static int s_numModes = -1;
-
-static void ReadModes() {
-    s_numModes = 0;
-    UINT n = VCall<UINT>(s_d3d, vt::D3D_GetAdapterModeCount, 0u);
-    for (UINT i = 0; i < n && s_numModes < (int)(sizeof s_modes / sizeof s_modes[0]); ++i) {
-        D3DDISPLAYMODE8 m;
-        if (FAILED(VCall<HRESULT>(s_d3d, vt::D3D_EnumAdapterModes, 0u, i, &m))) continue;
-        if (m.RefreshRate < 50 || (m.Format != D3DFMT8_X8R8G8B8 && m.Format != D3DFMT8_A8R8G8B8)) continue;
-        s_modes[s_numModes++] = {(int)m.Width, (int)m.Height, (int)m.RefreshRate};
-    }
-}
-
-// Refresh rates of the WxH 32-bit display modes, ascending.
-int RefreshRates(int w, int h, int* out, int max) {
-    if (!s_d3d) return 0;
-    if (s_numModes < 0) ReadModes();
-    int count = 0;
-    for (int i = 0; i < s_numModes; ++i) {
-        const Mode& m = s_modes[i];
-        if (m.w != w || m.h != h) continue;
-        int at = 0;
-        while (at < count && out[at] < m.hz) ++at;
-        if (at < count && out[at] == m.hz) continue;
-        if (count == max) break;
-        for (int k = count; k > at; --k) out[k] = out[k - 1];
-        out[at] = m.hz;
-        ++count;
-    }
-    return count;
+    if (s_vblankSync) InitVBlank((HWND)game::RwD3D8Window());
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -229,14 +193,12 @@ static HRESULT __stdcall Reset(void* dev, D3DPRESENT_PARAMETERS8* pp) {
 static HRESULT __stdcall CreateDevice(void* d3d, UINT adapter, DWORD type, HWND wnd, DWORD flags,
                                       D3DPRESENT_PARAMETERS8* pp, void** out) {
     s_d3d = d3d;
-    s_numModes = -1;
     AdjustParams(d3d, adapter, pp, "CreateDevice");
     HRESULT hr = s_CreateDevice(d3d, adapter, type, wnd, flags, pp, out);
     Log("CreateDevice(adapter %u, flags %X) -> %08X", adapter, flags, (unsigned)hr);
     if (SUCCEEDED(hr) && *out) {
         if (void* o = mem::HookVtbl(*out, vt::Dev_Reset, (void*)&Reset)) s_Reset = (decltype(s_Reset))o;
         if (void* o = mem::HookVtbl(*out, vt::Dev_Present, (void*)&Present)) s_Present = (decltype(s_Present))o;
-        OnDeviceCreated(*out, pp);
     }
     return hr;
 }
@@ -257,8 +219,8 @@ static void* __stdcall Direct3DCreate8(UINT sdk) {
 // Replaces psCameraShowRaster(RwCamera*): the vsync flag always matches the device state.
 static void __cdecl CameraShowRaster(void* camera) {
     using Fn = void*(__cdecl*)(void*, void*, unsigned);
-    void* window = *(void**)game::RsGlobalPs;
-    ((Fn)game::RwCameraShowRaster)(camera, window, s_rwFlag);
+    void* window = *(void**)game::RsGlobalPs();
+    ((Fn)At(game::RwCameraShowRaster))(camera, window, s_rwFlag);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -272,7 +234,7 @@ void InstallEarly(HMODULE exe) {
 
 void Install() {
     PatchGroup g("render: psCameraShowRaster constant vsync");
-    g.Expect(game::psCameraShowRaster, "80 3D 5D 86 86 00 00 53 8B 5C 24 08 75 09 80 3D 70 86 86 00 00");
-    if (g.Ok()) mem::Jmp(game::psCameraShowRaster, (void*)&CameraShowRaster);
+    g.Expect(At(game::psCameraShowRaster), "80 3D [86865D] 00 53 8B 5C 24 08 75 09 80 3D [868670] 00");
+    if (g.Ok()) mem::Jmp(At(game::psCameraShowRaster), (void*)&CameraShowRaster);
 }
 }  // namespace render

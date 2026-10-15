@@ -18,8 +18,9 @@
 //   goes to a file only after a crash, a failed byte check or with Log=1; from then on every line is flushed, so it
 //   survives a crash.
 //
-//   The settings live next to gta_vc.set, in the folder the game itself uses (Documents\GTA Vice City User Files). An
-//   older VCUnlock.ini in the game folder is taken over once and deleted with the old log.
+//   The settings and the log live next to VCUnlock.asi. Versions up to 1.1.2 kept them in the game's user folder
+//   (Documents\GTA Vice City User Files): on the first run that VCUnlock.ini is taken over with the settings that
+//   remain, and it is deleted with its log.
 //
 //   mem::Match runs under SEH: checking an unmapped address fails the check instead of crashing the game.
 //
@@ -45,7 +46,6 @@
 
 Config g_cfg;
 char g_dir[MAX_PATH];
-char g_userDir[MAX_PATH];
 
 // ---------------------------------------------------------------------------------------------------------------------
 //  LOG
@@ -118,7 +118,7 @@ void LogToFile() {
     EnterCriticalSection(&s_logCs);
     if (!s_log) {
         char p[MAX_PATH];
-        strcpy_s(p, g_userDir[0] ? g_userDir : g_dir);
+        strcpy_s(p, g_dir);
         strcat_s(p, "VCUnlock.log");
         s_log = _fsopen(p, "w", _SH_DENYWR);
         if (s_log) {
@@ -149,49 +149,34 @@ static void IniPut(const char* path, const char* sec, const char* key, int v) {
 }
 
 static const char kDefaultIni[] =
-    "; Grand Theft Auto: Vice City display settings. Display Setup and Audio Setup in the game change them too.\r\n"
+    "; Grand Theft Auto: Vice City frame rate settings. Display Setup in the game changes them too.\r\n"
     "[Display]\r\n"
-    "; 0 = exclusive fullscreen, 1 = borderless fullscreen window, 2 = windowed\r\n"
-    "WindowMode=1\r\n"
-    "; resolution, 0 = desktop resolution (windowed: 0 = 75% of desktop)\r\n"
-    "Width=0\r\n"
-    "Height=0\r\n"
     "; exclusive fullscreen refresh rate in Hz, 0 = highest available\r\n"
     "RefreshRate=0\r\n"
     "; 1 = vsync on (frame rate follows the monitor refresh rate), 0 = off\r\n"
     "VSync=1\r\n"
     "; frame rate cap, 0 = unlimited (applies on top of vsync if lower)\r\n"
     "FPSLimit=0\r\n"
-    "; 1 = HUD, radar and text at the correct aspect ratio and a wider view on wide screens\r\n"
-    "Widescreen=1\r\n"
     "; 1 = show the frame rate in the top-left corner\r\n"
     "ShowFPS=0\r\n"
-    "[Window]\r\n"
-    "; 1 = open the pause menu when the game loses focus, 0 = keep running in the background\r\n"
-    "PauseOnFocusLoss=1\r\n"
-    "; 1 = mute audio while the game is in the background (borderless/windowed)\r\n"
-    "MuteOnFocusLoss=1\r\n"
-    "; 1 = skip the startup logo movies\r\n"
-    "SkipIntro=0\r\n"
     "[Debug]\r\n"
     "; 1 = write VCUnlock.log, with frame rate statistics every 5 seconds\r\n"
     "Log=0\r\n";
 
-// The folder the game keeps gta_vc.set in, found the way the game finds it.
-static void FindUserDir() {
+// The folder the game keeps gta_vc.set in, found the way the game finds it, with a trailing backslash. Versions up to
+// 1.1.2 kept VCUnlock.ini and VCUnlock.log there.
+static bool FindUserDir(char* dir) {
     char p[MAX_PATH] = {};
     DWORD n = sizeof p - 32, type = 0;
     HKEY k;
     if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders", 0,
                       KEY_READ, &k) != ERROR_SUCCESS)
-        return;
+        return false;
     LONG r = RegQueryValueExA(k, "Personal", nullptr, &type, (BYTE*)p, &n);
     RegCloseKey(k);
-    if (r != ERROR_SUCCESS || type != REG_SZ || !p[0]) return;
-    strcat_s(p, "\\GTA Vice City User Files");
-    CreateDirectoryA(p, nullptr);
-    DWORD a = GetFileAttributesA(p);
-    if (a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY)) sprintf_s(g_userDir, "%s\\", p);
+    if (r != ERROR_SUCCESS || type != REG_SZ || !p[0]) return false;
+    sprintf_s(dir, MAX_PATH, "%s\\GTA Vice City User Files\\", p);
+    return true;
 }
 
 static void IniPath(char* p, const char* dir) {
@@ -201,70 +186,69 @@ static void IniPath(char* p, const char* dir) {
 
 static void ReadConfig(const char* p) {
     Config& c = g_cfg;
-    c.windowMode = IniInt(p, "Display", "WindowMode", c.windowMode);
-    c.width = IniInt(p, "Display", "Width", c.width);
-    c.height = IniInt(p, "Display", "Height", c.height);
     c.refreshRate = IniInt(p, "Display", "RefreshRate", c.refreshRate);
     c.vsync = IniInt(p, "Display", "VSync", c.vsync);
     c.fpsLimit = IniInt(p, "Display", "FPSLimit", c.fpsLimit);
-    c.widescreen = IniInt(p, "Display", "Widescreen", c.widescreen);
     c.showFps = IniInt(p, "Display", "ShowFPS", c.showFps);
-    c.pauseOnFocusLoss = IniInt(p, "Window", "PauseOnFocusLoss", c.pauseOnFocusLoss);
-    c.muteOnFocusLoss = IniInt(p, "Window", "MuteOnFocusLoss", c.muteOnFocusLoss);
-    c.skipIntro = IniInt(p, "Window", "SkipIntro", c.skipIntro);
     c.log = IniInt(p, "Debug", "Log", c.log);
 }
 
+// all: also the settings no menu changes
 static void WriteConfig(const char* p, bool all) {
     const Config& c = g_cfg;
-    IniPut(p, "Display", "WindowMode", c.windowMode);
-    IniPut(p, "Display", "Width", c.width);
-    IniPut(p, "Display", "Height", c.height);
-    IniPut(p, "Display", "RefreshRate", c.refreshRate);
     IniPut(p, "Display", "VSync", c.vsync);
     IniPut(p, "Display", "FPSLimit", c.fpsLimit);
-    IniPut(p, "Display", "Widescreen", c.widescreen);
     IniPut(p, "Display", "ShowFPS", c.showFps);
-    IniPut(p, "Window", "MuteOnFocusLoss", c.muteOnFocusLoss);
     if (!all) return;
-    IniPut(p, "Window", "PauseOnFocusLoss", c.pauseOnFocusLoss);
-    IniPut(p, "Window", "SkipIntro", c.skipIntro);
+    IniPut(p, "Display", "RefreshRate", c.refreshRate);
+    IniPut(p, "Debug", "Log", c.log);
+}
+
+static void WriteDefaultIni(const char* p, DWORD how) {
+    HANDLE h = CreateFileA(p, GENERIC_WRITE, 0, nullptr, how, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return;
+    DWORD w;
+    WriteFile(h, kDefaultIni, sizeof kDefaultIni - 1, &w, nullptr);
+    CloseHandle(h);
+}
+
+// Versions up to 1.1.2 also kept window, resolution and wide screen settings in the file.
+static bool OldIni(const char* p) {
+    char v[8];
+    return GetPrivateProfileStringA("Display", "WindowMode", "", v, sizeof v, p) > 0;
 }
 
 void SaveConfig() {
     char p[MAX_PATH];
-    IniPath(p, g_userDir[0] ? g_userDir : g_dir);
+    IniPath(p, g_dir);
     WriteConfig(p, false);
 }
 
 void LoadConfig(HMODULE self) {
     GetModuleFileNameA(self, g_dir, MAX_PATH);
     if (char* s = strrchr(g_dir, '\\')) s[1] = 0;
-    FindUserDir();
-    char p[MAX_PATH], old[MAX_PATH];
-    IniPath(p, g_userDir[0] ? g_userDir : g_dir);
-    IniPath(old, g_dir);
-    // older versions kept the file (and the log) in the game folder
-    bool migrate = g_userDir[0] && GetFileAttributesA(old) != INVALID_FILE_ATTRIBUTES;
-    if (GetFileAttributesA(p) == INVALID_FILE_ATTRIBUTES) {
-        HANDLE h = CreateFileA(p, GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (h != INVALID_HANDLE_VALUE) {
-            DWORD w;
-            WriteFile(h, kDefaultIni, sizeof kDefaultIni - 1, &w, nullptr);
-            CloseHandle(h);
-        }
+    char p[MAX_PATH], userDir[MAX_PATH], old[MAX_PATH];
+    IniPath(p, g_dir);
+    bool fresh = GetFileAttributesA(p) == INVALID_FILE_ATTRIBUTES, migrate = false;
+    if (fresh && FindUserDir(userDir)) {  // the first run takes over the file of an older version
+        IniPath(old, userDir);
+        migrate = GetFileAttributesA(old) != INVALID_FILE_ATTRIBUTES;
+    }
+    if (fresh) {
+        WriteDefaultIni(p, CREATE_NEW);
         if (migrate) {
             ReadConfig(old);
-            g_cfg.widescreen = IniInt(old, "HUD", "WidescreenHUD", 1) && IniInt(old, "HUD", "WidescreenFOV", 1);
-            g_cfg.showFps = IniInt(old, "HUD", "ShowFPS", g_cfg.showFps);
             WriteConfig(p, true);
         }
+    } else if (OldIni(p)) {  // written anew, so it lists no setting that does nothing now
+        ReadConfig(p);
+        WriteDefaultIni(p, CREATE_ALWAYS);
+        WriteConfig(p, true);
     }
     ReadConfig(p);
-    if (g_cfg.windowMode < 0 || g_cfg.windowMode > 2) g_cfg.windowMode = 1;
-    if (migrate) {
+    if (migrate && GetFileAttributesA(p) != INVALID_FILE_ATTRIBUTES) {  // deleted only once the settings are kept
         DeleteFileA(old);
-        strcpy_s(old, g_dir);
+        strcpy_s(old, userDir);
         strcat_s(old, "VCUnlock.log");
         DeleteFileA(old);
     }
@@ -283,6 +267,22 @@ static int hexv(char c) {
     return -1;
 }
 
+// "[973B34]" / "<4D0CB0>": a Steam address, 6 hex digits, through At(); 0 if the pattern is malformed or this version
+// has no such address
+static uintptr_t PlaceholderAddr(const char*& p) {
+    char close = p[0] == '[' ? ']' : '>';
+    uintptr_t steam = 0;
+    ++p;
+    for (; *p && *p != close; ++p) {
+        int v = hexv(*p);
+        if (v < 0) return 0;
+        steam = steam * 16 + v;
+    }
+    if (*p != close) return 0;
+    ++p;
+    return At(steam);
+}
+
 bool Match(uintptr_t addr, const char* p) {
     const uint8_t* m = (const uint8_t*)addr;
     __try {
@@ -294,6 +294,15 @@ bool Match(uintptr_t addr, const char* p) {
                 ++m;
                 continue;
             }
+            if (p[0] == '[' || p[0] == '<') {
+                bool rel = p[0] == '<';
+                uintptr_t a = PlaceholderAddr(p);
+                if (!a) return false;
+                if (rel) a -= uintptr_t(m) + 4;
+                if (*(const uint32_t*)m != (uint32_t)a) return false;
+                m += 4;
+                continue;
+            }
             int hi = hexv(p[0]), lo = hexv(p[1]);
             if (hi < 0 || lo < 0) return false;
             if (*m != uint8_t(hi * 16 + lo)) return false;
@@ -302,6 +311,17 @@ bool Match(uintptr_t addr, const char* p) {
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) { return false; }
     return true;
+}
+
+size_t PatternSize(const char* p) {
+    size_t n = 0;
+    while (*p) {
+        while (*p == ' ') ++p;
+        if (!*p) break;
+        n += *p == '[' || *p == '<' ? 4 : 1;
+        while (*p && *p != ' ') ++p;
+    }
+    return n;
 }
 
 void Write(uintptr_t addr, const void* data, size_t n) {

@@ -11,11 +11,11 @@ rem ============================================================================
 rem
 rem   FILE      build.bat
 rem   MODULE    build
-rem   ROLE      Builds dinput8.dll (x86) and its VCUnlock.asi copy into build
+rem   ROLE      Builds VCUnlock.asi (x86) into build
 rem
 rem --------------------------------------------------------------------------------------------------------------------
 rem
-rem   Finds the latest Visual Studio with the C++ x86 tools and builds a release DLL with a PDB.
+rem   Finds the latest Visual Studio with the C++ x86 tools and builds a release ASI plugin with a PDB.
 rem
 rem --------------------------------------------------------------------------------------------------------------------
 rem
@@ -35,8 +35,6 @@ cd /d "%~dp0"
 if not exist build mkdir build
 cl /nologo /std:c++20 /O2 /MT /arch:SSE2 /fp:precise /GS- /EHs-c- /utf-8 /W3 /wd4996 /DNDEBUG /Zi ^
    /Fobuild\ /Fdbuild\vc.pdb ^
-   src\*.cpp /LD /Febuild\dinput8.dll ^
-   /link /DEF:src\dinput8.def /DEBUG /OPT:REF /OPT:ICF user32.lib kernel32.lib gdi32.lib winmm.lib advapi32.lib || exit /b 1
-rem the same DLL, for players whose dinput8.dll is already an ASI loader
-copy /y build\dinput8.dll build\VCUnlock.asi >nul || exit /b 1
+   src\*.cpp /LD /Febuild\VCUnlock.asi ^
+   /link /DEBUG /OPT:REF /OPT:ICF user32.lib kernel32.lib gdi32.lib winmm.lib advapi32.lib || exit /b 1
 echo BUILD OK
