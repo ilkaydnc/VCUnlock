@@ -238,6 +238,7 @@ constexpr uintptr_t kSaveLimiter = 0x4902D1;     // SaveSettings: lea eax, [ebx 
 constexpr uintptr_t kDefaultLimiter = 0x49973F;  // Restore Defaults of Display Setup: ... PrefsFrameLimiter = 1
 
 static uint8_t s_fileLimiter;  // the player's value, as gta_vc.set has it
+static bool s_keepOff;         // set once saving writes the copy, so the file never gets OFF
 static void(__thiscall* s_loadSettings)(void*);
 
 // The game's start-up default or the loaded value moves to the copy. Runs after the game's own constructors, which
@@ -245,7 +246,7 @@ static void(__thiscall* s_loadSettings)(void*);
 static void __fastcall LoadSettings(void* menu, void*) {
     s_loadSettings(menu);
     s_fileLimiter = game::PrefsFrameLimiter();
-    game::PrefsFrameLimiter() = 0;
+    if (s_keepOff) game::PrefsFrameLimiter() = 0;
 }
 
 static void __cdecl OnSaveLimiter(fix::Regs* r, fix::Fpu*) { r->eax = (uint32_t)(uintptr_t)&s_fileLimiter; }
@@ -265,6 +266,7 @@ static void KeepGameLimiterOff() {
     const uint8_t off = 0;
     mem::Write(At(kDefaultLimiter) + 7, &off, 1);
     game::PrefsFrameLimiter() = 0;
+    s_keepOff = true;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
