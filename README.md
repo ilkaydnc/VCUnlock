@@ -52,6 +52,95 @@ The game still runs at 30 Hz underneath, so nothing breaks.
   </tr>
 </table>
 
+### Mods
+
+<table>
+  <tr>
+    <th width="140">Mod</th>
+    <th width="125">Version</th>
+    <th>Steam</th>
+    <th>Retail 1.0</th>
+    <th>Japanese</th>
+    <th>Guide</th>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/ThirteenAG/Ultimate-ASI-Loader">Ultimate ASI Loader</a></td>
+    <td>9.7.4</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/CookiePLMonster/SilentPatch">SilentPatch</a></td>
+    <td>Build 12.1</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td>-</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/Grovespaz/SpeedrunSilentPatch">SpeedrunSilentPatch</a></td>
+    <td>Build 11</td>
+    <td>-</td>
+    <td>-</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/gtavc">Widescreen Fix</a></td>
+    <td>4 Oct 2026</td>
+    <td><img src=".github/media/status/partial.svg" width="14" align="absmiddle" alt="">&nbsp; Works with fix</td>
+    <td><img src=".github/media/status/partial.svg" width="14" align="absmiddle" alt="">&nbsp; Works with fix</td>
+    <td>-</td>
+    <td><a href="mods/widescreen-fix.md">Guide</a></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/ThirteenAG/III.VC.SA.IV.Project2DFX/releases/tag/gtavc">Project2DFX</a></td>
+    <td>25 Sep 2026</td>
+    <td>-</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td>-</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/aap/skygfx_vc/releases">SkyGfx</a></td>
+    <td>3.0b</td>
+    <td>-</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td>-</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><a href="https://cookieplmonster.github.io/mods/gta-vc/#ginput">GInput</a></td>
+    <td>1.11a</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td>-</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/thelink2012/modloader/releases">Mod Loader</a></td>
+    <td>0.3.10</td>
+    <td>-</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td>-</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><a href="https://github.com/cleolibrary/CLEO-Redux/releases">CLEO Redux</a></td>
+    <td>1.5.1</td>
+    <td>-</td>
+    <td><img src=".github/media/status/partial.svg" width="14" align="absmiddle" alt="">&nbsp; Works with fix</td>
+    <td>-</td>
+    <td><a href="mods/cleo-redux.md">Guide</a></td>
+  </tr>
+</table>
+
+**-** means the mod doesn't run on that game version by itself, also without VCUnlock: it crashes, hangs or does nothing.
+
+With SkyGfx, **Display Setup** has no **Show FPS** row. Set `ShowFPS` in `VCUnlock.ini` instead.
+
 > [!TIP]
 > **Mod developers:** if you use VCUnlock in your mod pack and it doesn't work well with your other mods, [open an issue](https://github.com/ilkaydnc/VCUnlock/issues) and tell me about it. I'd like to help you fix it.
 
@@ -113,7 +202,7 @@ Also checked:
 - Every per-frame fix that was removed got a breakpoint. None fired outside a world update.
 - The 30 Hz world runs against a copy of the Steam executable in offline tests.
 - On retail 1.0 and the Japanese release every change goes in, the same as on Steam, and the world keeps 30 updates a second.
-- With SilentPatch (Build 12.1 and its DDraw component) and Ultimate ASI Loader 9.7.4, every VCUnlock change went in and the world kept 30 updates a second.
+- Other mods: see [Mods](#mods).
 
 ## Install
 
@@ -170,6 +259,8 @@ Older versions also had wide screen, window, draw distance and audio options. Th
 **Nothing changed in the game.** Make sure an ASI loader is installed and `VCUnlock.asi` sits in the game folder or next to your other `.asi` files. An older VCUnlock `dinput8.dll` must be replaced by the loader. Set `Log=1` and check `VCUnlock.log`. VCUnlock checks the game's code before every change and skips anything that doesn't match. If the log says "unsupported executable", your game version is not one VCUnlock knows.
 
 **Another frame rate mod.** Remove other frame rate mods first.
+
+**Stuck at 30 fps with the Widescreen Fix.** Its own frame limiter is on. See its [guide](mods/widescreen-fix.md#fix-stuck-at-30-fps).
 
 **Antivirus warning.** Every release is built by [GitHub Actions](https://github.com/ilkaydnc/VCUnlock/actions/workflows/build.yml) from this source. You can check your download against `SHA256SUMS.txt` on the release page.
 
