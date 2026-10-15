@@ -12,6 +12,7 @@
 
 - `VCUnlock.ini` and `VCUnlock.log` are created next to `VCUnlock.asi`, like other mods do, instead of in `Documents\GTA Vice City User Files`. The first start moves your old `VCUnlock.ini` there and keeps the settings you changed.
 - With GInput, one press of the radio key changes the station once instead of skipping several.
+- With the Widescreen Fix, the game is no longer stuck at 30 fps. Its own frame limiter stays off, and `gta_vc.set` keeps your setting for when VCUnlock isn't installed.
 
 ### Install
 

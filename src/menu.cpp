@@ -26,6 +26,10 @@
 //   The two rows are checked apart: if another mod has changed the rows below Frame Limiter, Show FPS is left out and
 //   Frame Limiter still works.
 //
+//   The game's own Frame Limiter setting stays OFF while VCUnlock runs. The game no longer reads it, but other mods do:
+//   the Widescreen Fix takes it as its own limiter and would hold the game at 30 fps. gta_vc.set keeps the player's
+//   value, because loading and saving it go to a copy.
+//
 // ---------------------------------------------------------------------------------------------------------------------
 //
 //   LICENCE   MIT. Copyright (c) 2026 İlkay Dinç. The full text is in LICENSE.
@@ -225,6 +229,45 @@ static void __cdecl OnChange(fix::Regs* r, fix::Fpu*) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+//  THE GAME'S OWN SETTING
+// ---------------------------------------------------------------------------------------------------------------------
+
+constexpr uintptr_t kLoadSettings = 0x48FD86;    // CMenuManager::LoadSettings, thiscall: reads gta_vc.set
+constexpr uintptr_t kWinMainLoad = 0x601906;     // mov ecx, FrontEndMenuManager; call LoadSettings
+constexpr uintptr_t kSaveLimiter = 0x4902D1;     // SaveSettings: lea eax, [ebx + 0x25] (PrefsFrameLimiter), written
+constexpr uintptr_t kDefaultLimiter = 0x49973F;  // Restore Defaults of Display Setup: ... PrefsFrameLimiter = 1
+
+static uint8_t s_fileLimiter;  // the player's value, as gta_vc.set has it
+static void(__thiscall* s_loadSettings)(void*);
+
+// The game's start-up default or the loaded value moves to the copy. Runs after the game's own constructors, which
+// set the default after VCUnlock installs when it is loaded as an ASI plugin.
+static void __fastcall LoadSettings(void* menu, void*) {
+    s_loadSettings(menu);
+    s_fileLimiter = game::PrefsFrameLimiter();
+    game::PrefsFrameLimiter() = 0;
+}
+
+static void __cdecl OnSaveLimiter(fix::Regs* r, fix::Fpu*) { r->eax = (uint32_t)(uintptr_t)&s_fileLimiter; }
+
+// Keeps the setting at OFF from now on: reading gta_vc.set and Restore Defaults no longer change it.
+static void KeepGameLimiterOff() {
+    PatchGroup g("menu: the game's own Frame Limiter setting");
+    g.Expect(At(kWinMainLoad), "B9 [868638] E8 <48FD86>")
+        .Expect(At(kSaveLimiter), "8D 43 25 83 C4 0C 6A 01 50 55 E8 <48DE20>")
+        .Expect(At(kDefaultLimiter), "C6 45 24 01 C6 45 25 01");
+    if (!g.Ok()) return;
+    s_loadSettings = (decltype(s_loadSettings))At(kLoadSettings);
+    s_fileLimiter = game::PrefsFrameLimiter();  // if the settings were loaded already
+    if (!fix::RetargetCall(At(kWinMainLoad) + 5, At(kLoadSettings), (void*)LoadSettings, "menu: load Frame Limiter") ||
+        !fix::Hook(At(kSaveLimiter) + 3, 6, "83 C4 0C 6A 01 50", OnSaveLimiter, "menu: save Frame Limiter"))
+        return;
+    const uint8_t off = 0;
+    mem::Write(At(kDefaultLimiter) + 7, &off, 1);
+    game::PrefsFrameLimiter() = 0;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 //  INSTALL
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -266,6 +309,7 @@ void Install(bool world) {
         !fix::Hook(At(kChange), 8, "0F BF 04 7D [6D7B4A]", OnChange, "menu: left/right"))
         return;
     s_limiter = limiter;
+    if (s_limiter) KeepGameLimiterOff();
     if (uint8_t* tramp = fps ? fix::AllocCode(16) : nullptr) {
         memcpy(tramp, (void*)At(game::CText_Get), 7);
         tramp[7] = 0xE9;
