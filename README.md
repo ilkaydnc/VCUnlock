@@ -8,22 +8,52 @@ The game still runs at 30 Hz underneath, so nothing breaks.
 [![Latest release](https://img.shields.io/github/v/release/ilkaydnc/VCUnlock?label=latest%20release)](https://github.com/ilkaydnc/VCUnlock/releases/latest)
 [![Build](https://github.com/ilkaydnc/VCUnlock/actions/workflows/build.yml/badge.svg)](https://github.com/ilkaydnc/VCUnlock/actions/workflows/build.yml)
 
-### [Download VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip)
-
 </div>
+
+> [!NOTE]
+> VCUnlock is an unofficial fan project. It needs your own copy of GTA Vice City, from Steam, the retail 1.0 release or the Japanese release, and contains no game code or files. It is not affiliated with Rockstar Games or Take-Two Interactive. Game names and logos are trademarks of their owners.
 
 ## Compatibility
 
-| Game | Version | Status | Download |
-|---|---|---|---|
-| GTA Vice City | Steam | Supported | [VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip) |
-| GTA Vice City | Retail 1.0 | Supported | [VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip) |
-| GTA Vice City | Japanese | Supported | [VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip) |
-| GTA III | | In progress | |
-| GTA San Andreas | | In progress | |
+<table>
+  <tr>
+    <th width="140">Game</th>
+    <th width="125">Version</th>
+    <th width="165">Status</th>
+    <th width="150">Download</th>
+  </tr>
+  <tr>
+    <td rowspan="3" align="center"><img src=".github/media/games/vc.png" height="64" alt="GTA Vice City"></td>
+    <td>Steam</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Supported</td>
+    <td><a href="https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip">VCUnlock.zip</a></td>
+  </tr>
+  <tr>
+    <td>Retail 1.0</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Supported</td>
+    <td><a href="https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip">VCUnlock.zip</a></td>
+  </tr>
+  <tr>
+    <td>Japanese</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Supported</td>
+    <td><a href="https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip">VCUnlock.zip</a></td>
+  </tr>
+  <tr>
+    <td align="center"><img src=".github/media/games/gta3.png" height="64" alt="GTA III"></td>
+    <td></td>
+    <td><img src=".github/media/status/in-progress.svg" width="14" align="absmiddle" alt="">&nbsp; In progress</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td align="center"><img src=".github/media/games/sa.png" height="64" alt="GTA San Andreas"></td>
+    <td></td>
+    <td><img src=".github/media/status/in-progress.svg" width="14" align="absmiddle" alt="">&nbsp; In progress</td>
+    <td></td>
+  </tr>
+</table>
 
-> [!NOTE]
-> VCUnlock is an unofficial fan project. It needs your own copy of GTA Vice City, from Steam, the retail 1.0 release or the Japanese release, and contains no game code or files. It is not affiliated with Rockstar Games or Take-Two Interactive.
+> [!TIP]
+> **Mod developers:** if you use VCUnlock in your mod pack and it doesn't work well with your other mods, [open an issue](https://github.com/ilkaydnc/VCUnlock/issues) and tell me about it. I'd like to help you fix it.
 
 <!-- video -->
 
