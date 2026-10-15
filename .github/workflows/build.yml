@@ -44,6 +44,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+
       - uses: actions/download-artifact@v8
         with:
           name: VCUnlock
@@ -56,11 +58,14 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
+          # Notes: the CHANGELOG.md section for this tag, then GitHub's generated notes
+          notes="$RUNNER_TEMP/notes.md"
+          awk -v h="## $TAG" '$0 == h { f = 1; next } /^## / { f = 0 } f' ../CHANGELOG.md > "$notes"
           files="VCUnlock.zip VCUnlock.asi SHA256SUMS.txt"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" $files --clobber
           else
             pre=""
             case "$TAG" in *-*) pre="--prerelease" ;; esac
-            gh release create "$TAG" $files --verify-tag --title "VCUnlock $TAG" --generate-notes $pre
+            gh release create "$TAG" $files --verify-tag --title "VCUnlock $TAG" --notes-file "$notes" --generate-notes $pre
           fi
