@@ -25,29 +25,29 @@ The game still runs at 30 Hz underneath, so nothing breaks.
   <tr>
     <td rowspan="3" align="center"><img src=".github/media/games/vc.png" height="64" alt="GTA Vice City"></td>
     <td>Steam</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Supported</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Supported</td>
     <td><a href="https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip">VCUnlock.zip</a></td>
   </tr>
   <tr>
     <td>Retail 1.0</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Supported</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Supported</td>
     <td><a href="https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip">VCUnlock.zip</a></td>
   </tr>
   <tr>
     <td>Japanese</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Supported</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Supported</td>
     <td><a href="https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip">VCUnlock.zip</a></td>
   </tr>
   <tr>
     <td align="center"><img src=".github/media/games/gta3.png" height="64" alt="GTA III"></td>
     <td></td>
-    <td><img src=".github/media/status/in-progress.svg" width="14" align="absmiddle" alt="">&nbsp; In progress</td>
+    <td nowrap><img src=".github/media/status/in-progress.svg" width="14" align="absmiddle" alt="">&nbsp; In progress</td>
     <td></td>
   </tr>
   <tr>
     <td align="center"><img src=".github/media/games/sa.png" height="64" alt="GTA San Andreas"></td>
     <td></td>
-    <td><img src=".github/media/status/in-progress.svg" width="14" align="absmiddle" alt="">&nbsp; In progress</td>
+    <td nowrap><img src=".github/media/status/in-progress.svg" width="14" align="absmiddle" alt="">&nbsp; In progress</td>
     <td></td>
   </tr>
 </table>
@@ -68,16 +68,16 @@ The game still runs at 30 Hz underneath, so nothing breaks.
   <tr>
     <td><a href="https://github.com/ThirteenAG/Ultimate-ASI-Loader">Ultimate ASI Loader</a></td>
     <td>9.7.4</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td></td>
   </tr>
   <tr>
     <td><a href="https://github.com/CookiePLMonster/SilentPatch">SilentPatch</a></td>
     <td>Build 12.1</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td>-</td>
     <td></td>
   </tr>
@@ -86,14 +86,14 @@ The game still runs at 30 Hz underneath, so nothing breaks.
     <td>Build 11</td>
     <td>-</td>
     <td>-</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td></td>
   </tr>
   <tr>
     <td><a href="https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/gtavc">Widescreen Fix</a></td>
     <td>4 Oct 2026</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td>-</td>
     <td>Put <code>VCUnlock.asi</code> into <code>scripts</code></td>
   </tr>
@@ -101,7 +101,7 @@ The game still runs at 30 Hz underneath, so nothing breaks.
     <td><a href="https://github.com/ThirteenAG/III.VC.SA.IV.Project2DFX/releases/tag/gtavc">Project2DFX</a></td>
     <td>25 Sep 2026</td>
     <td>-</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td>-</td>
     <td></td>
   </tr>
@@ -109,15 +109,15 @@ The game still runs at 30 Hz underneath, so nothing breaks.
     <td><a href="https://github.com/aap/skygfx_vc/releases">SkyGfx</a></td>
     <td>3.0b</td>
     <td>-</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td>-</td>
     <td>No <b>Show FPS</b> row: set <code>ShowFPS</code> in <code>VCUnlock.ini</code></td>
   </tr>
   <tr>
     <td><a href="https://cookieplmonster.github.io/mods/gta-vc/#ginput">GInput</a></td>
     <td>1.11a</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td>-</td>
     <td></td>
   </tr>
@@ -125,7 +125,7 @@ The game still runs at 30 Hz underneath, so nothing breaks.
     <td><a href="https://github.com/thelink2012/modloader/releases">Mod Loader</a></td>
     <td>0.3.10</td>
     <td>-</td>
-    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td>-</td>
     <td></td>
   </tr>
@@ -133,7 +133,7 @@ The game still runs at 30 Hz underneath, so nothing breaks.
     <td><a href="https://github.com/cleolibrary/CLEO-Redux/releases">CLEO Redux</a></td>
     <td>1.5.1</td>
     <td>-</td>
-    <td><img src=".github/media/status/partial.svg" width="14" align="absmiddle" alt="">&nbsp; Works with fix</td>
+    <td nowrap><img src=".github/media/status/partial.svg" width="14" align="absmiddle" alt="">&nbsp; Works with fix</td>
     <td>-</td>
     <td><a href="mods/cleo-redux.md">Guide</a></td>
   </tr>
