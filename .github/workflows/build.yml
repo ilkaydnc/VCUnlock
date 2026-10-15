@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Build dinput8.dll and VCUnlock.asi
+      - name: Build VCUnlock.asi
         shell: cmd
         run: call build.bat
 
@@ -24,10 +24,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item build\dinput8.dll, build\VCUnlock.asi, build\dinput8.pdb dist\
-          Compress-Archive -Path build\dinput8.dll -DestinationPath dist\VCUnlock.zip
-          Compress-Archive -Path build\VCUnlock.asi -DestinationPath dist\VCUnlock-ASI.zip
-          Get-ChildItem dist\VCUnlock.zip, dist\VCUnlock-ASI.zip, dist\dinput8.dll, dist\VCUnlock.asi | ForEach-Object {
+          Copy-Item build\VCUnlock.asi, build\VCUnlock.pdb dist\
+          Compress-Archive -Path build\VCUnlock.asi -DestinationPath dist\VCUnlock.zip
+          Get-ChildItem dist\VCUnlock.zip, dist\VCUnlock.asi | ForEach-Object {
             '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
           } | Set-Content -Encoding ascii dist\SHA256SUMS.txt
           Get-Content dist\SHA256SUMS.txt
@@ -57,7 +56,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          files="VCUnlock.zip VCUnlock-ASI.zip dinput8.dll VCUnlock.asi SHA256SUMS.txt"
+          files="VCUnlock.zip VCUnlock.asi SHA256SUMS.txt"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" $files --clobber
           else

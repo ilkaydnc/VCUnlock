@@ -10,20 +10,17 @@
 //
 //   FILE      main.cpp
 //   MODULE    main
-//   ROLE      dinput8.dll proxy and ASI plugin: entry point and install order
+//   ROLE      ASI plugin: entry point and install order
 //
 // ---------------------------------------------------------------------------------------------------------------------
 //
-//   The game loads VCUnlock as dinput8.dll from its own folder. DirectInput8Create is forwarded to the real dinput8.dll
-//   in the system directory, so input works exactly as before. The same DLL renamed to VCUnlock.asi is loaded by an ASI
-//   loader instead, for players whose dinput8.dll is already their loader.
+//   An ASI loader loads VCUnlock.asi. It loads plugins after SteamStub has decrypted .text, so DllMain installs at
+//   once. A loader that runs earlier, while .text is still encrypted, only gets the import hooks: the code patches then
+//   go in on the first early import call (GetStartupInfoA, GetCommandLineA, GetModuleHandleA) made after .text has
+//   been decrypted.
 //
-//   As dinput8.dll, DllMain runs while SteamStub still holds .text encrypted, so it only hooks imports. The code
-//   patches go in on the first early import call (GetStartupInfoA, GetCommandLineA, GetModuleHandleA) made after .text
-//   has been decrypted; the game's own DirectInput8Create call from WinMain is the fallback trigger. An ASI loader loads
-//   plugins after the decryption, from one of those early calls, so there DllMain installs at once.
-//
-//   With both files installed, the first copy loaded owns the game and the second one stays inert.
+//   With two copies loaded (an older VCUnlock dinput8.dll left next to VCUnlock.asi), the first one owns the game and
+//   the second one stays inert.
 //
 //   Versions: the executable is identified first (version.h). An executable that is no known version is left alone:
 //   no hook and no patch, only a log line that names it.
@@ -57,9 +54,8 @@ void Install();
 //  INSTALL
 // ---------------------------------------------------------------------------------------------------------------------
 
-static HMODULE s_self, s_realDinput;
+static HMODULE s_self;
 static bool s_active, s_installed;
-static HRESULT(WINAPI* s_DirectInput8Create)(HINSTANCE, DWORD, REFIID, LPVOID*, IUnknown*);
 
 static void InstallAll(const char* from) {
     if (!s_active || s_installed) return;
@@ -102,28 +98,6 @@ static HMODULE WINAPI Hk_GetModuleHandleA(LPCSTR n) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-//  DIRECTINPUT PROXY
-// ---------------------------------------------------------------------------------------------------------------------
-
-static bool LoadReal() {
-    if (s_realDinput) return true;
-    char p[MAX_PATH];
-    GetSystemDirectoryA(p, MAX_PATH);
-    strcat_s(p, "\\dinput8.dll");
-    s_realDinput = LoadLibraryA(p);
-    if (s_realDinput)
-        s_DirectInput8Create = (decltype(s_DirectInput8Create))GetProcAddress(s_realDinput, "DirectInput8Create");
-    return s_DirectInput8Create != nullptr;
-}
-
-extern "C" HRESULT WINAPI Proxy_DirectInput8Create(HINSTANCE inst, DWORD ver, REFIID iid, LPVOID* out,
-                                                   IUnknown* outer) {
-    InstallAll("DirectInput8Create");
-    if (!LoadReal()) return E_FAIL;
-    return s_DirectInput8Create(inst, ver, iid, out, outer);
-}
-
-// ---------------------------------------------------------------------------------------------------------------------
 //  DLL ENTRY POINT
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -148,7 +122,7 @@ static void LogUnsupported() {
     LogToFile();
 }
 
-// dinput8.dll and VCUnlock.asi both installed: only the first copy loaded may patch the game.
+// Two copies loaded (an older VCUnlock dinput8.dll and VCUnlock.asi): only the first one may patch the game.
 static bool FirstCopy() {
     char name[64];
     sprintf_s(name, "Local\\VCUnlock.%lu", GetCurrentProcessId());

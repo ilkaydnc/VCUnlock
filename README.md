@@ -83,33 +83,24 @@ Also checked:
 - Every per-frame fix that was removed got a breakpoint. None fired outside a world update.
 - The 30 Hz world runs against a copy of the Steam executable in offline tests.
 - On retail 1.0 and the Japanese release every change goes in, the same as on Steam, and the world keeps 30 updates a second.
-- With SilentPatch (Build 12.1 and its DDraw component) and Ultimate ASI Loader 9.7.4, in either load order, every VCUnlock change went in and the world kept 30 updates a second.
+- With SilentPatch (Build 12.1 and its DDraw component) and Ultimate ASI Loader 9.7.4, every VCUnlock change went in and the world kept 30 updates a second.
 
 ## Install
 
 You need GTA Vice City from Steam, the retail CD version 1.0 or the Japanese release. Other versions, such as retail 1.1, the Rockstar Games Launcher and the Definitive Edition, are not supported. VCUnlock leaves them untouched.
 
-To open the game folder on Steam, right-click the game and choose **Manage** → **Browse local files**. The retail game is in the folder you installed it to. Then follow the way that fits your folder.
+VCUnlock is an `.asi` plugin, like most GTA mods, so it needs an ASI loader. If you already have one, for example for SilentPatch, skip step 1.
 
-### Without an ASI loader
+1. Install [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases/latest), the 32-bit (Win32) version: put its `dinput8.dll` into the game folder, next to `gta-vc.exe`.
+2. Download [VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip).
+3. Extract `VCUnlock.asi` into the game folder, or into its `scripts` or `plugins` folder if your other `.asi` files are there.
+4. Start the game.
 
-Use this if you don't have an ASI loader installed.
-
-1. Download [VCUnlock.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock.zip).
-2. Extract `dinput8.dll` into the game folder, next to `gta-vc.exe`.
-3. Start the game.
-
-To uninstall, delete `dinput8.dll`.
-
-### With an ASI loader
-
-Use this if you already have an ASI loader installed, for example for SilentPatch. The loader is often a `dinput8.dll` of its own: keep it and add VCUnlock as one more `.asi` file.
-
-1. Download [VCUnlock-ASI.zip](https://github.com/ilkaydnc/VCUnlock/releases/latest/download/VCUnlock-ASI.zip).
-2. Extract `VCUnlock.asi` into the folder that holds your other `.asi` files. That is usually the game folder, or its `scripts` or `plugins` folder.
-3. Start the game.
+To open the game folder on Steam, right-click the game and choose **Manage** → **Browse local files**. The retail game is in the folder you installed it to.
 
 To uninstall, delete `VCUnlock.asi`.
+
+Older versions of VCUnlock came as a `dinput8.dll`. If you have one, replace it with the ASI loader's `dinput8.dll`.
 
 ## Settings
 
@@ -146,9 +137,9 @@ Older versions also had wide screen, window, draw distance and audio options. Th
 
 ## Troubleshooting
 
-**Nothing changed in the game.** Make sure `dinput8.dll` sits next to `gta-vc.exe`, or `VCUnlock.asi` next to your other `.asi` files. Set `Log=1` and check `VCUnlock.log`. VCUnlock checks the game's code before every change and skips anything that doesn't match. If the log says "unsupported executable", your game version is not one VCUnlock knows.
+**Nothing changed in the game.** Make sure an ASI loader is installed and `VCUnlock.asi` sits in the game folder or next to your other `.asi` files. An older VCUnlock `dinput8.dll` must be replaced by the loader. Set `Log=1` and check `VCUnlock.log`. VCUnlock checks the game's code before every change and skips anything that doesn't match. If the log says "unsupported executable", your game version is not one VCUnlock knows.
 
-**Another mod uses `dinput8.dll`.** That is usually an ASI loader: use `VCUnlock.asi` instead. Remove other frame rate mods first.
+**Another frame rate mod.** Remove other frame rate mods first.
 
 **Antivirus warning.** Every release is built by [GitHub Actions](https://github.com/ilkaydnc/VCUnlock/actions/workflows/build.yml) from this source. You can check your download against `SHA256SUMS.txt` on the release page.
 
@@ -162,7 +153,7 @@ You need Visual Studio 2022 or newer with the **Desktop development with C++** w
 build.bat
 ```
 
-The DLL is written to `build\dinput8.dll`, with a copy named `build\VCUnlock.asi`. Pushing a tag such as `v1.0.0` publishes a release.
+The plugin is written to `build\VCUnlock.asi`. Pushing a tag such as `v1.0.0` publishes a release.
 
 ## Special thanks
 
