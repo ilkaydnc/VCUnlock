@@ -1390,8 +1390,12 @@ void __cdecl Process() {
         s_drawing = true;
         return;
     }
+    // Lockstep at a cap of 30 or below, where a blend would only add delay. Not in slow motion (the stunt jump's 0.3):
+    // its ticks come less often than frames.
+    bool lockstep = g_cfg.fpsLimit > 0 && g_cfg.fpsLimit <= 30 && game::TimeScale() >= 1.0f;
     if (!s_started) {
         s_acc.Reset();
+        s_acc.lockstep = lockstep;
         Capture(true);
         fx::Reset();
         s_started = true;
@@ -1405,7 +1409,7 @@ void __cdecl Process() {
         s_acc.dropped = 0;
         Log("fixed: world active, 30 Hz");
     }
-    s_acc.lockstep = g_cfg.fpsLimit > 0 && g_cfg.fpsLimit <= 30;  // a blend would only add delay at these rates
+    s_acc.SetLockstep(lockstep);
     s_acc.Add(s_delta);
     while (s_acc.Take()) {
         timer::FixedTick();

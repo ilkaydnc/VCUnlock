@@ -19,7 +19,7 @@
 //   - Vec, Matrix and Quaternion with the operations the presentation needs.
 //   - Blend, BlendSpin, BlendTwist, BlendFollow, MoveVisual and TurnLook: poses between two ticks.
 //   - Accumulator: schedules 30 Hz ticks from real time and drops what exceeds its catch-up cap. In lockstep (a frame
-//     cap of 30 or below) every frame runs its tick and shows it unblended, as the original did.
+//     cap of 30 or below, at full game speed) every frame runs its tick and shows it unblended, as the original did.
 //
 // ---------------------------------------------------------------------------------------------------------------------
 //
@@ -356,6 +356,7 @@ inline Matrix InverseRigid(const Matrix& m) {
 // up; Alpha is how far the drawn frame lies between the last tick and the next.
 // Lockstep, for frame rates capped at 30 or below: a tick is due once half of it has passed, so at a 30 fps cap
 // every frame runs exactly one tick, and the frame shows that tick as it is (Alpha 1), as the original game did.
+// In slow motion ticks are further apart than frames, so the frames between them are blended again.
 struct Accumulator {
     double remainder = 0, dropped = 0;
     bool lockstep = false;
@@ -374,5 +375,12 @@ struct Accumulator {
         return true;
     }
     float Alpha() const { return lockstep ? 1.0f : (float)std::clamp(remainder / TickMs, 0.0, 1.0); }
+    // Changes the mode between frames without drawing an earlier pose than the last frame showed: lockstep draws the
+    // newest tick at its own time, a blend one tick behind the time it has counted.
+    void SetLockstep(bool on) {
+        if (on == lockstep) return;
+        remainder = on ? remainder - TickMs : std::max(0.0, remainder) + TickMs;
+        lockstep = on;
+    }
 };
 }  // namespace fixedmath
