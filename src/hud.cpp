@@ -10,16 +10,12 @@
 //
 //   FILE      hud.cpp
 //   MODULE    hud
-//   ROLE      Widescreen field of view, aspect-correct HUD and the FPS counter
+//   ROLE      The FPS counter
 //
 // ---------------------------------------------------------------------------------------------------------------------
 //
-//   Hor+ field of view for the 3D world and an aspect-correct 2D HUD. At 4:3 every value below equals the original
-//   constant, so both features change nothing there.
-//
-//   Wide Screen and Show FPS switch at once from the menu: with Wide Screen off every value is the original one and
-//   the view is stretched as in the original's fullscreen, also borderless and windowed. The FPS counter is always
-//   installed but draws only when Show FPS is on.
+//   The frame rate, printed with the game's font in the top-left corner. The counter is always installed but draws
+//   only when Show FPS is on, so the menu row switches it at once.
 //
 // ---------------------------------------------------------------------------------------------------------------------
 //
@@ -35,167 +31,14 @@
 #include "fix.h"
 #include "modules.h"
 #include "timer.h"
-#include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <iterator>
-#include <span>
 
 namespace hud {
 
-// ---------------------------------------------------------------------------------------------------------------------
-//  STATE
-// ---------------------------------------------------------------------------------------------------------------------
+static bool s_fpsHook;  // patch in place; g_cfg.showFps switches the counter at runtime
 
-// Our copies of the values the patched instructions read, initialised to their 4:3 values.
-static float g_hudScaleX = 1.0f / 640.0f;  // H/(480*W): replaces 1/640 in X-scaled HUD values
-static float g_fovHorPlus = 45.0f;         // frustum FOV (degrees) matching the widened view window
-static float g_sprite70w = 70.0f;          // CSprite::CalcScreenCoors width factor (70*k43)
-static float g_arHorPlus = 4.0f / 3.0f;    // ms_fAspectRatio * kx for camera code
-static uint8_t s_noWidePref = 0;           // CalculateAspectRatio reads this instead of the menu pref
-
-static double s_kx = 1.0;  // horizontal widening = A/(4/3)
-static int s_w, s_h;
-static bool s_fov, s_hud, s_fpsHook;  // patches in place; g_cfg.widescreen and g_cfg.showFps switch them at runtime
-
-static double Widening() { return s_fov && g_cfg.widescreen ? s_kx : 1.0; }
-
-// ---------------------------------------------------------------------------------------------------------------------
-//  VIEW SIZE AND FIELD OF VIEW
-// ---------------------------------------------------------------------------------------------------------------------
-
-static void UpdateFov() {
-    float fov = game::MsFov();
-    double kx = Widening();
-    g_fovHorPlus = kx == 1.0 ? fov
-                             : (float)(2.0 * atan(tan(fov * 0.5 * (3.14159265358979 / 180.0)) * kx) *
-                                       (180.0 / 3.14159265358979));
-}
-
-// With widescreen off every copy holds the original value.
-static void Recompute() {
-    bool hud = s_hud && g_cfg.widescreen && s_w > 0 && s_h > 0;
-    g_hudScaleX = hud ? (float)(s_h / (480.0 * s_w)) : 1.0f / 640.0f;
-    double kx = Widening();
-    g_sprite70w = (float)(70.0 / kx);
-    g_arHorPlus = (float)(game::MsAspectRatio() * kx);
-    UpdateFov();
-}
-
-static void SetSize(int w, int h) {
-    if (w == s_w && h == s_h) return;
-    s_w = w;
-    s_h = h;
-    s_kx = (3.0 * w) / (4.0 * h);
-    Recompute();
-    Log("hud: %dx%d, kx %.4f, hudScaleX %.7f, fov %.2f -> %.2f", w, h, s_kx, g_hudScaleX, (float)game::MsFov(),
-        g_fovHorPlus);
-}
-
-bool WidescreenReady() { return s_fov || s_hud; }
 bool FpsReady() { return s_fpsHook; }
-
-// Widescreen switched in the game menu: the camera view window follows on the next CameraSize (every frame).
-void ApplyWidescreen() {
-    Recompute();
-    Log("hud: widescreen %s", g_cfg.widescreen ? "on" : "off");
-}
-
-// ---------------------------------------------------------------------------------------------------------------------
-//  CAMERA HOOKS
-// ---------------------------------------------------------------------------------------------------------------------
-
-// CameraSize 0x580729, after the camera rasters were resized; ebx = RwRect* (w at +8, h at +0xC)
-static void __cdecl OnCameraSize(fix::Regs* r, fix::Fpu*) {
-    const int32_t* rect = (const int32_t*)r->ebx;
-    if (rect[2] > 0 && rect[3] > 0) SetSize(rect[2], rect[3]);
-    uint32_t* s = r->Stack();
-    float V = *(float*)&s[0x4C / 4];   // tan(hfov43/2)
-    float ar = *(float*)&s[0x50 / 4];  // 4/3, or 5/4 with the cutscene letterbox
-    float* vw = (float*)&s[2];
-    if (!s_fov || !g_cfg.widescreen) {
-        // The original's exclusive fullscreen branch in every display mode: the view stretched across the screen.
-        // Its branch for other video modes (0x580748) would crop the view to the window's shape instead.
-        vw[0] = V;
-        vw[1] = V / ar;
-    } else {
-        if (ar > 1.5f) ar *= 0.75f;  // menu widescreen pref (16/9, 5/3) -> 4/3, 5/4
-        vw[0] = (float)(V * s_kx);   // Hor+: wider horizontally
-        vw[1] = V / ar;              // original 4:3 vertical extent
-    }
-    r->cont = At(0x58078C);  // RwCameraSetViewWindow(cam, vw)
-}
-
-// CalculateAspectRatio tail (fld ms_fAspectRatio; ret): keep the camera code's aspect in step
-static void __cdecl OnAspectRatio(fix::Regs*, fix::Fpu*) { g_arHorPlus = (float)(game::MsAspectRatio() * Widening()); }
-
-// Replaces CDraw::SetFOV (fld [esp+4]; fstp ms_fFOV; ret), the only writer of ms_fFOV
-static float* s_msFov;  // &game::MsFov(), set before SetFOV is installed
-__declspec(naked) static void SetFOV() {
-    __asm {
-        fld dword ptr [esp + 4]
-        mov eax, s_msFov
-        fstp dword ptr [eax]
-        pushad
-        pushfd
-        sub esp, 108
-        fsave [esp]
-        call UpdateFov
-        frstor [esp]
-        add esp, 108
-        popfd
-        popad
-        ret
-    }
-}
-
-// ---------------------------------------------------------------------------------------------------------------------
-//  HUD SITES
-// ---------------------------------------------------------------------------------------------------------------------
-
-// An fmul that reads one of the game's 1/640 copies; see hud_sites.inc. A site one executable does not have names it.
-struct Site {
-    uint32_t addr, copy;
-    int absentIn = -1;  // a ver::Id
-};
-
-static const Site kHudSites[] = {
-#include "hud_sites.inc"
-};
-
-// The sites of the running executable: the rows it has, through the map, and its own ones.
-struct Here {
-    uintptr_t at, copy;
-    uint32_t row;  // the Steam address of the row, 0 for a site of this executable only
-};
-
-static int HereSites(Here* out) {
-    int n = 0;
-    for (const Site& s : kHudSites)
-        if (s.absentIn < 0 || !ver::Is(ver::Id(s.absentIn))) out[n++] = {At(s.addr), At(s.copy), s.addr};
-    // The Japanese CHud::Draw moves one centred text right by 15 units, 0x17 bytes after the counterpart of 0x55B917.
-    if (ver::Is(ver::JP)) out[n++] = {At(0x55B917) ? At(0x55B917) + 0x17 : 0, At(0x696A78), 0};
-    return n;
-}
-
-// Taken: still reads the game's copy. Left: another mod (SilentPatch: the radar blur exclusion) points it at its own
-// constant, so that element stays the mod's. Anything else is a different executable.
-enum class SiteState { Taken, Left, Bad };
-
-static HMODULE SiteOwner(const Here& s) {
-    HMODULE m = nullptr;
-    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                       (LPCSTR)(uintptr_t)*(const uint32_t*)(s.at + 2), &m);
-    return m;
-}
-
-static SiteState HudSite(const Here& s) {
-    const uint8_t* b = (const uint8_t*)s.at;
-    if (!b || b[0] != 0xD8 || b[1] != 0x0D) return SiteState::Bad;
-    if (*(const uint32_t*)(b + 2) == s.copy) return SiteState::Taken;
-    HMODULE m = SiteOwner(s);
-    return m && m != GetModuleHandleA(nullptr) ? SiteState::Left : SiteState::Bad;
-}
 
 // ---------------------------------------------------------------------------------------------------------------------
 //  FPS COUNTER
@@ -232,7 +75,7 @@ static void __cdecl DrawFontsWithFps() {
         float h = (float)game::RsGlobalHeight();
         static const uint8_t color[4] = {255, 255, 255, 230}, shadow[4] = {0, 0, 0, 230};
         memcpy(&Font<uint8_t>(0x00), color, 4);
-        Font<float>(0x04) = 0.45f * h / 480.0f;  // X scaled by height, like the aspect-correct HUD
+        Font<float>(0x04) = 0.45f * h / 480.0f;  // X scaled by height: the same shape on any screen
         Font<float>(0x08) = 0.75f * h / 448.0f;
         Font<float>(0x0C) = 0;               // slant
         memset(&Font<uint8_t>(0x18), 0, 9);  // justify, centre, right, background(s), prop, shadow, flash, bold
@@ -255,7 +98,7 @@ static void __cdecl DrawFontsWithFps() {
     DrawFonts();
 }
 
-static void InstallFps() {
+void Install() {
     PatchGroup g("hud: FPS counter");
     g.Expect(At(0x4A600D), "E8 <550140>")                               // Idle: CFont::DrawFonts after menus and fade
         .Expect(At(0x550140), "E8 <551920> C3")                         // CFont::DrawFonts
@@ -280,72 +123,6 @@ static void InstallFps() {
         g.ok = false;
     }
     if (g.Ok()) s_fpsHook = fix::RetargetCall(At(0x4A600D), At(0x550140), (void*)&DrawFontsWithFps, "hud: FPS counter");
-}
-
-// ---------------------------------------------------------------------------------------------------------------------
-//  INSTALL
-// ---------------------------------------------------------------------------------------------------------------------
-
-void Install() {
-    InstallFps();
-    s_fov = s_hud = true;
-
-    PatchGroup g("hud: camera size hook");
-    g.Expect(At(0x580729), "8B 44 24 1C 83 E0 01 74 16 D9 44 24 4C D8 74 24 50");
-    if (!g.Ok()) {
-        Log("hud: widescreen disabled (CameraSize mismatch)");
-        s_fov = s_hud = false;
-        return;
-    }
-
-    if (s_fov) {
-        PatchGroup f("hud: Hor+ FOV");
-        f.Expect(At(0x54A1D0), "D9 44 24 04 D9 1D [695660] C3");    // CDraw::SetFOV
-        f.Expect(At(0x54A160), "80 3D [86865A] 00");                // CalculateAspectRatio: widescreen pref
-        f.Expect(At(0x54A1BA), "D9 05 [94CD40] C3");                // CalculateAspectRatio tail
-        f.Expect(At(0x46C2D0), "D8 0D [695660]");                   // frustum: fmul ms_fFOV
-        f.Expect(At(0x57785D), "D9 05 [698518] D8 35 [695660]");    // CalcScreenCoors: fld 70.0 (width only)
-        static const uintptr_t kAspect[] = {0x46F81D, 0x473EAA, 0x47C690, 0x47C963};
-        for (uintptr_t a : kAspect) f.Expect(At(a), "D8 0D [94CD40]");
-        if (f.Ok()) {
-            s_msFov = &game::MsFov();
-            mem::Jmp(At(0x54A1D0), (void*)&SetFOV);
-            fix::Redirect(At(0x54A160), "80 3D [86865A] 00", At(0x86865A), &s_noWidePref,
-                          "aspect: ignore widescreen pref");
-            fix::Hook(At(0x54A1BA), 6, "D9 05 [94CD40]", OnAspectRatio, "aspect: Hor+ copy");
-            fix::Redirect(At(0x46C2D0), "D8 0D [695660]", At(0x695660), &g_fovHorPlus, "frustum FOV");
-            fix::Redirect(At(0x57785D), "D9 05 [698518]", At(0x698518), &g_sprite70w, "sprite width");
-            for (uintptr_t a : kAspect)
-                fix::Redirect(At(a), "D8 0D [94CD40]", At(0x94CD40), &g_arHorPlus, "camera aspect");
-        } else s_fov = false;
-    }
-
-    if (s_hud) {
-        Here sites[std::size(kHudSites) + 1];
-        int count = HereSites(sites), bad = 0, left = 0;
-        for (const Here& s : std::span(sites, count)) {
-            SiteState st = HudSite(s);
-            if (st == SiteState::Left) {
-                char mod[MAX_PATH];
-                GetModuleFileNameA(SiteOwner(s), mod, MAX_PATH);
-                const char* n = strrchr(mod, '\\');
-                Log("hud: site %08X left to %s", s.row ? s.row : s.at, n ? n + 1 : mod);
-                ++left;
-            } else if (st == SiteState::Bad && bad++ < 5)
-                Log("hud: site %08X does not match (copy %08X)", s.row ? s.row : s.at, s.copy);
-        }
-        if (bad) {
-            Log("hud: aspect-correct HUD SKIPPED (%d of %d sites differ)", bad, count);
-            s_hud = false;
-        } else {
-            for (const Here& s : std::span(sites, count))
-                if (HudSite(s) == SiteState::Taken) mem::Put<uint32_t>(s.at + 2, (uint32_t)(uintptr_t)&g_hudScaleX);
-            Log("hud: aspect-correct HUD applied (%d sites)", count - left);
-        }
-    }
-
-    if ((s_fov || s_hud) && !fix::Hook(At(0x580729), 7, "8B 44 24 1C 83 E0 01", OnCameraSize, "CameraSize view window"))
-        s_fov = s_hud = false;
 }
 
 }  // namespace hud

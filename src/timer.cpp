@@ -36,7 +36,6 @@
 #include "game.h"
 #include "timer.h"
 #include "render.h"
-#include "modules.h"
 #include "fixed.h"
 #include <intrin.h>
 #include <cmath>
@@ -177,9 +176,6 @@ static double FrameCap() {
 
 static void Pace() {
     double cap = FrameCap();
-    int bg = window::BackgroundFps();
-    if (bg > 0 && (cap <= 0 || cap > bg)) cap = bg;
-    if (cap <= 0) return;
     double period = 1.0 / cap;
     double target = s_lastFrame + period;
     double now = Now();
@@ -235,10 +231,7 @@ static void Stats(double rawMs) {
 
 static void __cdecl Update() {
     uintptr_t ret = (uintptr_t)_ReturnAddress();
-    if (ret == At(game::Idle_CallTimerUpdate_Ret) || ret == At(game::FrontendIdle_CallTimerUpdate_Ret)) {
-        Pace();
-        window::Tick();
-    }
+    if (ret == At(game::Idle_CallTimerUpdate_Ret) || ret == At(game::FrontendIdle_CallTimerUpdate_Ret)) Pace();
 
     using namespace game;
     PrevTimeInMs() = TimeInMs();

@@ -57,17 +57,10 @@ void LogToFile();
 // VCUnlock.ini. The defaults match the file LoadConfig writes on the first run.
 struct Config {
     // [Display]
-    int windowMode = 1;         // 0 exclusive fullscreen, 1 borderless, 2 windowed
-    int width = 0, height = 0;  // 0 = desktop
-    int refreshRate = 0;        // exclusive only, 0 = highest available
+    int refreshRate = 0;  // exclusive fullscreen only, 0 = highest available
     int vsync = 1;
     int fpsLimit = 0;  // 0 = unlimited (used when vsync off, or as an extra cap)
-    int widescreen = 1;
     int showFps = 0;
-    // [Window]
-    int pauseOnFocusLoss = 1;
-    int muteOnFocusLoss = 1;
-    int skipIntro = 0;
     // [Debug]
     int log = 0;
 };

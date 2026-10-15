@@ -29,7 +29,7 @@
 //   no hook and no patch, only a log line that names it.
 //
 //   Install order: the fixed 30 Hz world first. If any of its byte checks fail, the game keeps its own 30 fps timing
-//   and only the display, window and HUD features are applied.
+//   and only the vsync handling and the FPS counter are applied.
 //
 // ---------------------------------------------------------------------------------------------------------------------
 //
@@ -47,7 +47,6 @@
 #include "modules.h"
 #include "fixed.h"
 #include "fix.h"
-#include "drawdist.h"
 #include <cstdio>
 
 namespace crash {
@@ -68,12 +67,10 @@ static void InstallAll(const char* from) {
     s_installed = true;
     Log("gta-vc.exe %s, installing (trigger: %s)", ver::Current()->name, from);
     // The fixed 30 Hz world replaces CTimer::Update and the frame loop; if its byte checks fail the game
-    // keeps its own timing (30 fps limiter) and only the display/window/HUD features are applied.
+    // keeps its own timing (30 fps limiter) and only the vsync handling and the FPS counter are applied.
     bool world = fixed::Install();
     render::Install();
-    window::Install();
     if (world) perframe::Install();
-    drawdist::Install(world);
     hud::Install();
     menu::Install(world);
     Log("install done");
@@ -168,8 +165,7 @@ BOOL WINAPI DllMain(HMODULE mod, DWORD reason, LPVOID) {
         char file[MAX_PATH];
         GetModuleFileNameA(mod, file, MAX_PATH);
         const char* name = strrchr(file, '\\');
-        Log("VCUnlock loaded as %s (window mode %d, vsync %d, fps limit %d)", name ? name + 1 : file, g_cfg.windowMode,
-            g_cfg.vsync, g_cfg.fpsLimit);
+        Log("VCUnlock loaded as %s (vsync %d, fps limit %d)", name ? name + 1 : file, g_cfg.vsync, g_cfg.fpsLimit);
         if (!ver::Known()) {
             LogUnsupported();
             return TRUE;
@@ -184,10 +180,8 @@ BOOL WINAPI DllMain(HMODULE mod, DWORD reason, LPVOID) {
         s_GetModuleHandleA = (decltype(s_GetModuleHandleA))mem::HookImport(exe, "KERNEL32.dll", "GetModuleHandleA",
                                                                            (void*)&Hk_GetModuleHandleA);
         render::InstallEarly(exe);
-        window::InstallEarly(exe);
         InstallAll("DllMain");  // loaded as an ASI plugin: .text is already decrypted
     } else if (reason == DLL_PROCESS_DETACH && s_active) {
-        window::Shutdown();
         Log("unloading");
     }
     return TRUE;

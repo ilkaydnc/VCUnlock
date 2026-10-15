@@ -23,7 +23,6 @@
 //     vertical blank itself (D3DKMT).
 //   - A Frame Limiter change applies at once: a windowed device swaps COPY and COPY_VSYNC through the game's own device
 //     reset, exclusive fullscreen switches the vertical blank wait.
-//   - The adapter's display modes are read once per device for the Screen Resolution list.
 //
 // ---------------------------------------------------------------------------------------------------------------------
 //
@@ -171,41 +170,6 @@ void ApplyVsync() {
     if (s_vblankSync) InitVBlank((HWND)game::RwD3D8Window());
 }
 
-// The 32-bit display modes of the adapter, read once per device: EnumAdapterModes is slow (milliseconds a call).
-struct Mode { int w, h, hz; };
-static Mode s_modes[1024];
-static int s_numModes = -1;
-
-static void ReadModes() {
-    s_numModes = 0;
-    UINT n = VCall<UINT>(s_d3d, vt::D3D_GetAdapterModeCount, 0u);
-    for (UINT i = 0; i < n && s_numModes < (int)(sizeof s_modes / sizeof s_modes[0]); ++i) {
-        D3DDISPLAYMODE8 m;
-        if (FAILED(VCall<HRESULT>(s_d3d, vt::D3D_EnumAdapterModes, 0u, i, &m))) continue;
-        if (m.RefreshRate < 50 || (m.Format != D3DFMT8_X8R8G8B8 && m.Format != D3DFMT8_A8R8G8B8)) continue;
-        s_modes[s_numModes++] = {(int)m.Width, (int)m.Height, (int)m.RefreshRate};
-    }
-}
-
-// Refresh rates of the WxH 32-bit display modes, ascending.
-int RefreshRates(int w, int h, int* out, int max) {
-    if (!s_d3d) return 0;
-    if (s_numModes < 0) ReadModes();
-    int count = 0;
-    for (int i = 0; i < s_numModes; ++i) {
-        const Mode& m = s_modes[i];
-        if (m.w != w || m.h != h) continue;
-        int at = 0;
-        while (at < count && out[at] < m.hz) ++at;
-        if (at < count && out[at] == m.hz) continue;
-        if (count == max) break;
-        for (int k = count; k > at; --k) out[k] = out[k - 1];
-        out[at] = m.hz;
-        ++count;
-    }
-    return count;
-}
-
 // ---------------------------------------------------------------------------------------------------------------------
 //  DIRECT3D 8 HOOKS
 // ---------------------------------------------------------------------------------------------------------------------
@@ -229,14 +193,12 @@ static HRESULT __stdcall Reset(void* dev, D3DPRESENT_PARAMETERS8* pp) {
 static HRESULT __stdcall CreateDevice(void* d3d, UINT adapter, DWORD type, HWND wnd, DWORD flags,
                                       D3DPRESENT_PARAMETERS8* pp, void** out) {
     s_d3d = d3d;
-    s_numModes = -1;
     AdjustParams(d3d, adapter, pp, "CreateDevice");
     HRESULT hr = s_CreateDevice(d3d, adapter, type, wnd, flags, pp, out);
     Log("CreateDevice(adapter %u, flags %X) -> %08X", adapter, flags, (unsigned)hr);
     if (SUCCEEDED(hr) && *out) {
         if (void* o = mem::HookVtbl(*out, vt::Dev_Reset, (void*)&Reset)) s_Reset = (decltype(s_Reset))o;
         if (void* o = mem::HookVtbl(*out, vt::Dev_Present, (void*)&Present)) s_Present = (decltype(s_Present))o;
-        OnDeviceCreated(*out, pp);
     }
     return hr;
 }

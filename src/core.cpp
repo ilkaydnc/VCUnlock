@@ -19,7 +19,8 @@
 //   survives a crash.
 //
 //   The settings live next to gta_vc.set, in the folder the game itself uses (Documents\GTA Vice City User Files). An
-//   older VCUnlock.ini in the game folder is taken over once and deleted with the old log.
+//   older VCUnlock.ini in the game folder is taken over once and deleted with the old log. A file from version 1.1.2 or
+//   older, which also held the window and wide screen settings, is written anew with the settings that remain.
 //
 //   mem::Match runs under SEH: checking an unmapped address fails the check instead of crashing the game.
 //
@@ -149,30 +150,16 @@ static void IniPut(const char* path, const char* sec, const char* key, int v) {
 }
 
 static const char kDefaultIni[] =
-    "; Grand Theft Auto: Vice City display settings. Display Setup and Audio Setup in the game change them too.\r\n"
+    "; Grand Theft Auto: Vice City frame rate settings. Display Setup in the game changes them too.\r\n"
     "[Display]\r\n"
-    "; 0 = exclusive fullscreen, 1 = borderless fullscreen window, 2 = windowed\r\n"
-    "WindowMode=1\r\n"
-    "; resolution, 0 = desktop resolution (windowed: 0 = 75% of desktop)\r\n"
-    "Width=0\r\n"
-    "Height=0\r\n"
     "; exclusive fullscreen refresh rate in Hz, 0 = highest available\r\n"
     "RefreshRate=0\r\n"
     "; 1 = vsync on (frame rate follows the monitor refresh rate), 0 = off\r\n"
     "VSync=1\r\n"
     "; frame rate cap, 0 = unlimited (applies on top of vsync if lower)\r\n"
     "FPSLimit=0\r\n"
-    "; 1 = HUD, radar and text at the correct aspect ratio and a wider view on wide screens\r\n"
-    "Widescreen=1\r\n"
     "; 1 = show the frame rate in the top-left corner\r\n"
     "ShowFPS=0\r\n"
-    "[Window]\r\n"
-    "; 1 = open the pause menu when the game loses focus, 0 = keep running in the background\r\n"
-    "PauseOnFocusLoss=1\r\n"
-    "; 1 = mute audio while the game is in the background (borderless/windowed)\r\n"
-    "MuteOnFocusLoss=1\r\n"
-    "; 1 = skip the startup logo movies\r\n"
-    "SkipIntro=0\r\n"
     "[Debug]\r\n"
     "; 1 = write VCUnlock.log, with frame rate statistics every 5 seconds\r\n"
     "Log=0\r\n";
@@ -201,34 +188,36 @@ static void IniPath(char* p, const char* dir) {
 
 static void ReadConfig(const char* p) {
     Config& c = g_cfg;
-    c.windowMode = IniInt(p, "Display", "WindowMode", c.windowMode);
-    c.width = IniInt(p, "Display", "Width", c.width);
-    c.height = IniInt(p, "Display", "Height", c.height);
     c.refreshRate = IniInt(p, "Display", "RefreshRate", c.refreshRate);
     c.vsync = IniInt(p, "Display", "VSync", c.vsync);
     c.fpsLimit = IniInt(p, "Display", "FPSLimit", c.fpsLimit);
-    c.widescreen = IniInt(p, "Display", "Widescreen", c.widescreen);
     c.showFps = IniInt(p, "Display", "ShowFPS", c.showFps);
-    c.pauseOnFocusLoss = IniInt(p, "Window", "PauseOnFocusLoss", c.pauseOnFocusLoss);
-    c.muteOnFocusLoss = IniInt(p, "Window", "MuteOnFocusLoss", c.muteOnFocusLoss);
-    c.skipIntro = IniInt(p, "Window", "SkipIntro", c.skipIntro);
     c.log = IniInt(p, "Debug", "Log", c.log);
 }
 
+// all: also the settings no menu changes
 static void WriteConfig(const char* p, bool all) {
     const Config& c = g_cfg;
-    IniPut(p, "Display", "WindowMode", c.windowMode);
-    IniPut(p, "Display", "Width", c.width);
-    IniPut(p, "Display", "Height", c.height);
-    IniPut(p, "Display", "RefreshRate", c.refreshRate);
     IniPut(p, "Display", "VSync", c.vsync);
     IniPut(p, "Display", "FPSLimit", c.fpsLimit);
-    IniPut(p, "Display", "Widescreen", c.widescreen);
     IniPut(p, "Display", "ShowFPS", c.showFps);
-    IniPut(p, "Window", "MuteOnFocusLoss", c.muteOnFocusLoss);
     if (!all) return;
-    IniPut(p, "Window", "PauseOnFocusLoss", c.pauseOnFocusLoss);
-    IniPut(p, "Window", "SkipIntro", c.skipIntro);
+    IniPut(p, "Display", "RefreshRate", c.refreshRate);
+    IniPut(p, "Debug", "Log", c.log);
+}
+
+static void WriteDefaultIni(const char* p, DWORD how) {
+    HANDLE h = CreateFileA(p, GENERIC_WRITE, 0, nullptr, how, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return;
+    DWORD w;
+    WriteFile(h, kDefaultIni, sizeof kDefaultIni - 1, &w, nullptr);
+    CloseHandle(h);
+}
+
+// Versions up to 1.1.2 also kept window, resolution and wide screen settings in the file.
+static bool OldIni(const char* p) {
+    char v[8];
+    return GetPrivateProfileStringA("Display", "WindowMode", "", v, sizeof v, p) > 0;
 }
 
 void SaveConfig() {
@@ -247,21 +236,18 @@ void LoadConfig(HMODULE self) {
     // older versions kept the file (and the log) in the game folder
     bool migrate = g_userDir[0] && GetFileAttributesA(old) != INVALID_FILE_ATTRIBUTES;
     if (GetFileAttributesA(p) == INVALID_FILE_ATTRIBUTES) {
-        HANDLE h = CreateFileA(p, GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (h != INVALID_HANDLE_VALUE) {
-            DWORD w;
-            WriteFile(h, kDefaultIni, sizeof kDefaultIni - 1, &w, nullptr);
-            CloseHandle(h);
-        }
+        WriteDefaultIni(p, CREATE_NEW);
         if (migrate) {
             ReadConfig(old);
-            g_cfg.widescreen = IniInt(old, "HUD", "WidescreenHUD", 1) && IniInt(old, "HUD", "WidescreenFOV", 1);
             g_cfg.showFps = IniInt(old, "HUD", "ShowFPS", g_cfg.showFps);
             WriteConfig(p, true);
         }
+    } else if (OldIni(p)) {  // written anew, so it lists no setting that does nothing now
+        ReadConfig(p);
+        WriteDefaultIni(p, CREATE_ALWAYS);
+        WriteConfig(p, true);
     }
     ReadConfig(p);
-    if (g_cfg.windowMode < 0 || g_cfg.windowMode > 2) g_cfg.windowMode = 1;
     if (migrate) {
         DeleteFileA(old);
         strcpy_s(old, g_dir);

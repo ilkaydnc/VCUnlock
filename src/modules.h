@@ -10,11 +10,11 @@
 //
 //   FILE      modules.h
 //   MODULE    main
-//   ROLE      Entry points of the window, HUD and per-frame modules
+//   ROLE      Entry points of the HUD, menu and per-frame modules
 //
 // ---------------------------------------------------------------------------------------------------------------------
 //
-//   Called by main.cpp in install order; timer.cpp also calls into window:: once per drawn frame.
+//   Called by main.cpp in install order.
 //
 // ---------------------------------------------------------------------------------------------------------------------
 //
@@ -26,37 +26,14 @@
 // =====================================================================================================================
 
 #pragma once
-#include <windows.h>
-#include <cstdint>
 
-// Window modes, focus, cursor and system settings.
-namespace window {
-void InstallEarly(HMODULE exe);
-void Install();
-void Shutdown();
-void Tick();          // once per frame: cursor confinement
-int BackgroundFps();  // frame cap while unfocused (0 = none)
-int Mode();           // effective window mode
-
-// Display Setup's Screen Resolution row. mode: 0 exclusive, 1 borderless, 2 windowed; hz 0 = default; vm = RW mode.
-struct Choice {
-    int mode, w, h, hz, vm;
-};
-int Choices(const Choice** list);      // rebuilds the list, returns its length
-int CurrentChoice();                   // index of the running mode in the last list, -1 if none
-void PrepareChoice(const Choice& c);   // takes the settings; the game's handler then restarts the device
-bool SwitchWindowed(const Choice& c);  // borderless <-> windowed without a device restart; false if not possible
-}  // namespace window
-
-// Widescreen field of view, aspect-correct HUD and the FPS counter.
+// The FPS counter.
 namespace hud {
 void Install();
-bool WidescreenReady();  // widescreen patches in place
-bool FpsReady();         // FPS counter patch in place
-void ApplyWidescreen();  // after g_cfg.widescreen changed
+bool FpsReady();  // FPS counter patch in place
 }  // namespace hud
 
-// Display Setup and Audio Setup rows for the VCUnlock settings.
+// Display Setup rows for the VCUnlock settings.
 namespace menu {
 void Install(bool world);
 }  // namespace menu

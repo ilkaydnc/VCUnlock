@@ -421,6 +421,62 @@ static void World() {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+//  BUILDING FADE-IN
+// ---------------------------------------------------------------------------------------------------------------------
+
+// Buildings fade in by 16/255 on every visibility check, once per drawn frame, so at 144 fps a fade took 0.11 s
+// instead of 0.53 s. CSimpleModelInfo::IncreaseAlpha is inlined as alpha = alpha >= 0xEF ? 0xFF : alpha + 16; the
+// thunk adds s_fadeStep with the same ceiling, so a step of 16 gives the original result.
+struct Fade {
+    uintptr_t at;
+    const char* bytes;
+    uint8_t base;  // register holding the model info: 5 ebp, 3 ebx
+    uintptr_t next;
+};
+static const Fade kFades[] = {
+    {0x4C79FC, "80 7D 41 EF 73 06 80 45 41 10 EB 04 C6 45 41 FF", 5, 0x4C7A0C},              // big buildings
+    {0x4C7AF4, "80 7D 41 EF 73 06 80 45 41 10 EB 04 C6 45 41 FF", 5, 0x4C7B04},              // big buildings, fading
+    {0x4C81C1, "80 7B 41 EF 73 09 80 43 41 10 EB 07 8D 40 00 C6 43 41 FF", 3, 0x4C81D4},     // entities
+    {0x4C8320, "80 7B 41 EF 73 0A 80 43 41 10 EB 08 8D 44 20 00 C6 43 41 FF", 3, 0x4C8334},  // entities, fading
+};
+
+static uint32_t s_fadeStep = 16;
+static double s_fadeCarry;
+
+// 16 per 1/30 s of real time, the original step at 30 fps; the fraction carries over to the next frame.
+static void UpdateFadeStep() {
+    double step = s_fadeCarry + 16.0 * timer::kFrame;
+    if (step > 255.0) step = 255.0;
+    s_fadeStep = (uint32_t)step;
+    s_fadeCarry = step - s_fadeStep;
+}
+
+static void Fades() {
+    PatchGroup g("perframe: building fade-in");
+    for (const Fade& f : kFades) g.Expect(At(f.at), f.bytes);
+    if (!g.Ok()) return;
+    for (const Fade& f : kFades) {
+        uint8_t* t = fix::AllocCode(48);
+        if (!t) continue;
+        uint8_t m = uint8_t(0x40 | f.base);  // [base+disp8], eax/al
+        Emit e{t};
+        e.B({0x50});                                                      // push eax
+        e.B({0x0F, 0xB6, m, 0x41});                                       // movzx eax, byte [base+0x41]
+        e.B({0x03, 0x05}); e.U32((uint32_t)(uintptr_t)&s_fadeStep);       // add eax, [step]
+        e.B({0x3D}); e.U32(0xFF);                                         // cmp eax, 0xFF
+        e.B({0x76, 5});                                                   // jbe store
+        e.B({0xB8}); e.U32(0xFF);                                         // mov eax, 0xFF
+        e.B({0x88, m, 0x41});                                             // store: mov [base+0x41], al
+        e.B({0x58});                                                      // pop eax
+        e.Jmp(At(f.next));
+        FlushInstructionCache(GetCurrentProcess(), t, e.p - t);
+        mem::Jmp(At(f.at), t, f.next - f.at);
+        fix::Count(true);
+    }
+    timer::OnDrawnFrame(UpdateFadeStep);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 //  INSTALL
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -431,6 +487,7 @@ void Install() {
     Hud();
     Audio();
     World();
+    Fades();
     Log("perframe: %d patches applied, %d failed", fix::Applied() - a0, fix::Failed() - f0);
 }
 }  // namespace perframe
