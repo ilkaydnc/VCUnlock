@@ -54,6 +54,8 @@ The game still runs at 30 Hz underneath, so nothing breaks.
 
 ### Mods
 
+**-** = the mod doesn't run on that game version, also without VCUnlock.
+
 <table>
   <tr>
     <th width="140">Mod</th>
@@ -61,7 +63,7 @@ The game still runs at 30 Hz underneath, so nothing breaks.
     <th>Steam</th>
     <th>Retail 1.0</th>
     <th>Japanese</th>
-    <th>Guide</th>
+    <th>Notes</th>
   </tr>
   <tr>
     <td><a href="https://github.com/ThirteenAG/Ultimate-ASI-Loader">Ultimate ASI Loader</a></td>
@@ -90,10 +92,10 @@ The game still runs at 30 Hz underneath, so nothing breaks.
   <tr>
     <td><a href="https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/gtavc">Widescreen Fix</a></td>
     <td>4 Oct 2026</td>
-    <td><img src=".github/media/status/partial.svg" width="14" align="absmiddle" alt="">&nbsp; Works with fix</td>
-    <td><img src=".github/media/status/partial.svg" width="14" align="absmiddle" alt="">&nbsp; Works with fix</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
+    <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td>-</td>
-    <td><a href="mods/widescreen-fix.md">Guide</a></td>
+    <td>Put <code>VCUnlock.asi</code> into <code>scripts</code></td>
   </tr>
   <tr>
     <td><a href="https://github.com/ThirteenAG/III.VC.SA.IV.Project2DFX/releases/tag/gtavc">Project2DFX</a></td>
@@ -109,7 +111,7 @@ The game still runs at 30 Hz underneath, so nothing breaks.
     <td>-</td>
     <td><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td>-</td>
-    <td></td>
+    <td>No <b>Show FPS</b> row: set <code>ShowFPS</code> in <code>VCUnlock.ini</code></td>
   </tr>
   <tr>
     <td><a href="https://cookieplmonster.github.io/mods/gta-vc/#ginput">GInput</a></td>
@@ -137,9 +139,7 @@ The game still runs at 30 Hz underneath, so nothing breaks.
   </tr>
 </table>
 
-**-** means the mod doesn't run on that game version by itself, also without VCUnlock: it crashes, hangs or does nothing.
-
-With SkyGfx, **Display Setup** has no **Show FPS** row. Set `ShowFPS` in `VCUnlock.ini` instead.
+**Your mod isn't listed?** [Open an issue](https://github.com/ilkaydnc/VCUnlock/issues) and tell me if it works with VCUnlock, works after a manual fix (and what the fix is), or doesn't work. I'll add it to the table.
 
 > [!TIP]
 > **Mod developers:** if you use VCUnlock in your mod pack and it doesn't work well with your other mods, [open an issue](https://github.com/ilkaydnc/VCUnlock/issues) and tell me about it. I'd like to help you fix it.
@@ -259,8 +259,6 @@ Older versions also had wide screen, window, draw distance and audio options. Th
 **Nothing changed in the game.** Make sure an ASI loader is installed and `VCUnlock.asi` sits in the game folder or next to your other `.asi` files. An older VCUnlock `dinput8.dll` must be replaced by the loader. Set `Log=1` and check `VCUnlock.log`. VCUnlock checks the game's code before every change and skips anything that doesn't match. If the log says "unsupported executable", your game version is not one VCUnlock knows.
 
 **Another frame rate mod.** Remove other frame rate mods first.
-
-**Stuck at 30 fps with the Widescreen Fix.** Its own frame limiter is on. See its [guide](mods/widescreen-fix.md#fix-stuck-at-30-fps).
 
 **Antivirus warning.** Every release is built by [GitHub Actions](https://github.com/ilkaydnc/VCUnlock/actions/workflows/build.yml) from this source. You can check your download against `SHA256SUMS.txt` on the release page.
 
