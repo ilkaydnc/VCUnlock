@@ -18,9 +18,9 @@ The game still runs at 30 Hz underneath, so nothing breaks.
 <table>
   <tr>
     <th width="140">Game</th>
-    <th width="125">Version</th>
-    <th width="165">Status</th>
-    <th width="150">Download</th>
+    <th width="125" align="left">Version</th>
+    <th width="165" align="left">Status</th>
+    <th width="150" align="left">Download</th>
   </tr>
   <tr>
     <td rowspan="3" align="center"><img src=".github/media/games/vc.png" height="64" alt="GTA Vice City"></td>
@@ -58,88 +58,88 @@ The game still runs at 30 Hz underneath, so nothing breaks.
 
 <table>
   <tr>
-    <th width="140">Mod</th>
-    <th width="125">Version</th>
-    <th>Steam</th>
-    <th>Retail 1.0</th>
-    <th>Japanese</th>
-    <th>Notes</th>
+    <th align="left">Mod</th>
+    <th align="left">Version</th>
+    <th align="left">Steam</th>
+    <th align="left">Retail 1.0</th>
+    <th align="left">Japanese</th>
+    <th align="left">Notes</th>
   </tr>
   <tr>
-    <td><a href="https://github.com/ThirteenAG/Ultimate-ASI-Loader">Ultimate ASI Loader</a></td>
-    <td>9.7.4</td>
+    <td nowrap><a href="https://github.com/ThirteenAG/Ultimate-ASI-Loader">Ultimate ASI Loader</a></td>
+    <td nowrap>9.7.4</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td></td>
   </tr>
   <tr>
-    <td><a href="https://github.com/CookiePLMonster/SilentPatch">SilentPatch</a></td>
-    <td>Build 12.1</td>
+    <td nowrap><a href="https://github.com/CookiePLMonster/SilentPatch">SilentPatch</a></td>
+    <td nowrap>Build 12.1</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
-    <td>-</td>
+    <td nowrap>-</td>
     <td></td>
   </tr>
   <tr>
-    <td><a href="https://github.com/Grovespaz/SpeedrunSilentPatch">SpeedrunSilentPatch</a></td>
-    <td>Build 11</td>
-    <td>-</td>
-    <td>-</td>
+    <td nowrap><a href="https://github.com/Grovespaz/SpeedrunSilentPatch">SpeedrunSilentPatch</a></td>
+    <td nowrap>Build 11</td>
+    <td nowrap>-</td>
+    <td nowrap>-</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td></td>
   </tr>
   <tr>
-    <td><a href="https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/gtavc">Widescreen Fix</a></td>
-    <td>4 Oct 2026</td>
+    <td nowrap><a href="https://github.com/ThirteenAG/WidescreenFixesPack/releases/tag/gtavc">Widescreen Fix</a></td>
+    <td nowrap>4 Oct 2026</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
-    <td>-</td>
-    <td>Put <code>VCUnlock.asi</code> into <code>scripts</code></td>
+    <td nowrap>-</td>
+    <td nowrap>Put&nbsp;<code>VCUnlock.asi</code>&nbsp;in&nbsp;<code>scripts</code></td>
   </tr>
   <tr>
-    <td><a href="https://github.com/ThirteenAG/III.VC.SA.IV.Project2DFX/releases/tag/gtavc">Project2DFX</a></td>
-    <td>25 Sep 2026</td>
-    <td>-</td>
+    <td nowrap><a href="https://github.com/ThirteenAG/III.VC.SA.IV.Project2DFX/releases/tag/gtavc">Project2DFX</a></td>
+    <td nowrap>25 Sep 2026</td>
+    <td nowrap>-</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
-    <td>-</td>
+    <td nowrap>-</td>
     <td></td>
   </tr>
   <tr>
-    <td><a href="https://github.com/aap/skygfx_vc/releases">SkyGfx</a></td>
-    <td>3.0b</td>
-    <td>-</td>
+    <td nowrap><a href="https://github.com/aap/skygfx_vc/releases">SkyGfx</a></td>
+    <td nowrap>3.0b</td>
+    <td nowrap>-</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
-    <td>-</td>
-    <td>No <b>Show FPS</b> row: set <code>ShowFPS</code> in <code>VCUnlock.ini</code></td>
+    <td nowrap>-</td>
+    <td nowrap>Set&nbsp;<code>ShowFPS</code>&nbsp;in&nbsp;<code>VCUnlock.ini</code></td>
   </tr>
   <tr>
-    <td><a href="https://cookieplmonster.github.io/mods/gta-vc/#ginput">GInput</a></td>
-    <td>1.11a</td>
+    <td nowrap><a href="https://cookieplmonster.github.io/mods/gta-vc/#ginput">GInput</a></td>
+    <td nowrap>1.11a</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
-    <td>-</td>
+    <td nowrap>-</td>
     <td></td>
   </tr>
   <tr>
-    <td><a href="https://github.com/thelink2012/modloader/releases">Mod Loader</a></td>
-    <td>0.3.10</td>
-    <td>-</td>
+    <td nowrap><a href="https://github.com/thelink2012/modloader/releases">Mod Loader</a></td>
+    <td nowrap>0.3.10</td>
+    <td nowrap>-</td>
     <td nowrap><img src=".github/media/status/supported.svg" width="14" align="absmiddle" alt="">&nbsp; Works</td>
-    <td>-</td>
+    <td nowrap>-</td>
     <td></td>
   </tr>
   <tr>
-    <td><a href="https://github.com/cleolibrary/CLEO-Redux/releases">CLEO Redux</a></td>
-    <td>1.5.1</td>
-    <td>-</td>
-    <td nowrap><img src=".github/media/status/partial.svg" width="14" align="absmiddle" alt="">&nbsp; Works with fix</td>
-    <td>-</td>
-    <td><a href="mods/cleo-redux.md">Guide</a></td>
+    <td nowrap><a href="https://github.com/cleolibrary/CLEO-Redux/releases">CLEO Redux</a></td>
+    <td nowrap>1.5.1</td>
+    <td nowrap>-</td>
+    <td nowrap><img src=".github/media/status/partial.svg" width="14" align="absmiddle" alt="">&nbsp; Needs fix</td>
+    <td nowrap>-</td>
+    <td nowrap><a href="mods/cleo-redux.md">Guide</a></td>
   </tr>
 </table>
 
-**Your mod isn't listed?** [Open an issue](https://github.com/ilkaydnc/VCUnlock/issues) and tell me if it works with VCUnlock, works after a manual fix (and what the fix is), or doesn't work. I'll add it to the table.
+**Your mod isn't listed?** [Open an issue](https://github.com/ilkaydnc/VCUnlock/issues) and tell me if it works with VCUnlock, needs a fix (and what the fix is), or doesn't work. I'll add it to the table.
 
 > [!TIP]
 > **Mod developers:** if you use VCUnlock in your mod pack and it doesn't work well with your other mods, [open an issue](https://github.com/ilkaydnc/VCUnlock/issues) and tell me about it. I'd like to help you fix it.
