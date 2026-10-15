@@ -189,7 +189,7 @@ Same vehicle, same place and the same scripted input, recorded from the game at 
 | | VCUnlock | Original, limiter off |
 |---|---|---|
 | World updates per second | 30.00 | 240, one per frame |
-| Game clock | Real time | 8% slow |
+| Game clock | Same as 30 fps | 8% slow |
 | Infernus coasting | Same as 30 fps | Stops dead in 1.5 s |
 | Maverick climb | Same as 30 fps | 79 m up in 7 s instead of 67 |
 | Speeder at full throttle | Same as 30 fps | 60 to 90 km/h instead of 120 |

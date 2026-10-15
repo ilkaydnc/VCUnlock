@@ -42,7 +42,7 @@ namespace timer {
 extern float k;                 // update length in 30 fps frames: 1 in a world tick, the tick count on a drawn frame
 extern uint32_t logicalPassed;  // 30 Hz ticks in this update (0 on drawn frames without a tick)
 extern float kFrame;            // this drawn frame's real length in 30 fps frames (0 while the world is stopped)
-extern const float ts30;        // 50/30: the time step of one 30 Hz tick
+extern const float ts30;        // the time step of one 30 Hz tick (just above 50/30, like the original's)
 
 // ---------------------------------------------------------------------------------------------------------------------
 //  INSTALL AND CLOCK

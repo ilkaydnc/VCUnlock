@@ -15,8 +15,9 @@
 // ---------------------------------------------------------------------------------------------------------------------
 //
 //   Drawn frames (Idle) only measure real time for the fixed world: the game clock, the time step and FrameCounter
-//   advance once per world tick (FixedTick). Other callers (frontend, loading screens, cutscene loads) keep a variable
-//   step with the pause, time-scale and clamp rules of the original CTimer::Update, with two differences:
+//   advance once per world tick (FixedTick), by what one frame of the original at its 30 fps cap gives them. Other
+//   callers (frontend, loading screens, cutscene loads) keep a variable step with the pause, time-scale and clamp
+//   rules of the original CTimer::Update, with two differences:
 //
 //   - the millisecond clocks carry the fractional part (the original truncated it every frame);
 //   - all math runs in double precision (the original ran in the 24-bit x87 mode D3D leaves behind).
@@ -65,7 +66,11 @@ double Now() {
     return double(t.QuadPart) / freq;
 }
 
-const float ts30 = (float)(50.0 / 30.0);
+// The original's limiter starts a frame only once more than 1000/30 ms have passed, so its time step is always just
+// above 50/30 and an anim reaches a frame-numbered time (weapon.dat loops, fire frames) after exactly that many frames.
+// 50/30 itself rounds down, which costs every fire loop an extra tick. This is a 33.33343 ms frame.
+const float ts30 = 0x1.AAAAFAp+0f;  // 1.6666714
+constexpr uint32_t kTickMs = 33;  // whole ms of that frame
 
 // 30 Hz logical frames in real time, like the original FrameCounter (ticks while paused too)
 static uint32_t RealTimeLogical(double rawMs) {
@@ -121,15 +126,13 @@ static void RefreshFixes() {
 //  WORLD TICKS
 // ---------------------------------------------------------------------------------------------------------------------
 
-// One world tick: the game clocks advance by exactly 1/30 s (the ms clocks keep the fraction).
+// One world tick: one 30 fps frame of the original. Its ms clocks drop the fraction of every frame, so they advance
+// 33 ms, the same as GetTimeStepInMilliseconds; the checks that look one step back for a time just passed need that.
 void FixedTick() {
     using namespace game;
     PrevTimeInMs() = TimeInMs();
-    s_accMain += 1000.0 / 30.0;
-    uint32_t elapsed = (uint32_t)(s_accMain + 1e-9);
-    s_accMain -= elapsed;
-    TimeInMs() += elapsed;
-    TimeInMsNonClipped() += elapsed;
+    TimeInMs() += kTickMs;
+    TimeInMsNonClipped() += kTickMs;
     TimeStep() = TimeStepNonClipped() = ts30;
     ++FrameCounter();
     logicalPassed = 1;
