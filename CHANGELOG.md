@@ -2,6 +2,15 @@
 
 <!-- A release shows the section whose heading matches its tag, followed by GitHub's list of changes. -->
 
+## v2.0.1
+
+### Fixed
+
+- Guns fire as fast as in the original game. Each shot took one frame too long, so the M4 fired 7.5 shots a second instead of 10 and the Uzi 10 instead of 15, and the firing animation swung further than it should.
+- Animations end on the same frame as in the original, so getting in and out of cars, melee moves and reloads are no longer a frame late.
+- The stunt jump's slow motion is smooth with the frame rate capped at 30.
+- Aiming a rifle in first person, a shot's recoil no longer makes your mouse turn lag behind.
+
 ## v2.0.0
 
 ### New
