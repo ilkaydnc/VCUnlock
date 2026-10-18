@@ -144,7 +144,9 @@ The game still runs at 30 Hz underneath, so nothing breaks.
 > [!TIP]
 > **Mod developers:** if you use VCUnlock in your mod pack and it doesn't work well with your other mods, [open an issue](https://github.com/ilkaydnc/VCUnlock/issues) and tell me about it. I'd like to help you fix it.
 
-<!-- video -->
+## Video
+
+<a href="https://youtu.be/jWyjQ8pooW0"><img src=".github/media/video.jpg" width="760" alt="VCUnlock showcase: GTA Vice City at 30 fps and 240 fps"></a>
 
 ## Why
 
